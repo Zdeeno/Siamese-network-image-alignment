@@ -10,6 +10,7 @@ class ImgPairLoader(Dataset):
     def __init__(self, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
         super(ImgPairLoader, self).__init__()
         self.width = 1024
+        self.height = 384
 
         lvl1_subfolders = [f.path for f in os.scandir(path) if f.is_dir()]
         lvl2_subfolders = []
