@@ -5,10 +5,10 @@ from torchvision.io import read_image, decode_image
 import random
 
 
-class ImgPairLoader(Dataset):
+class ImgPairDataset(Dataset):
 
     def __init__(self, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
-        super(ImgPairLoader, self).__init__()
+        super(ImgPairDataset, self).__init__()
         self.width = 1024
         self.height = 384
 
@@ -49,13 +49,41 @@ class ImgPairLoader(Dataset):
             b, a = 0, 1
             displacement = -self.annotated_img_pairs[idx][2]
 
-        source_img = read_image(self.annotated_img_pairs[idx][a])
-        target_img = read_image(self.annotated_img_pairs[idx][b])
+        source_img = read_image(self.annotated_img_pairs[idx][a])/255.0
+        target_img = read_image(self.annotated_img_pairs[idx][b])/255.0
         return source_img, target_img, displacement
 
 
+class CroppedImgPairDataset(ImgPairDataset):
+
+    def __init__(self, crop_width, fraction, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
+        super(CroppedImgPairDataset, self).__init__(path=path)
+        self.crop_width = crop_width
+        self.fraction = fraction
+
+    def __getitem__(self, idx):
+        source, target, displac = super(CroppedImgPairDataset, self).__getitem__(idx)
+        cropped_target, crop_start = self.crop_img(target)
+        heatmap = self.get_heatmap(crop_start, displac)
+        return source, cropped_target, heatmap
+
+    def crop_img(self, img):
+        crop_start = random.randint(0, self.width - self.crop_width - 1)
+        return img[:, :, crop_start:crop_start + self.crop_width], crop_start
+
+    def get_heatmap(self, crop_start, displacement):
+        frac = self.width // self.fraction - 1
+        heatmap = t.zeros(frac).long()
+        idx = int((crop_start + displacement + self.crop_width//2) / self.fraction)
+        if 0 <= idx < frac:
+            heatmap[idx] = 1
+        return heatmap
+
+
+
+
 if __name__ == '__main__':
-    dataset = ImgPairLoader()
+    dataset = CroppedImgPairDataset(16, 8)
     import matplotlib.pyplot as plt
     plt.imshow(dataset[0][1].permute(1, 2, 0))
     plt.imshow(dataset[0][0].permute(1, 2, 0))

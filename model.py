@@ -1,5 +1,5 @@
 import torch as t
-import torch.nn.functional as F
+from torch.nn.functional import conv2d, conv1d
 
 
 class CNN(t.nn.Module):
@@ -13,10 +13,12 @@ class CNN(t.nn.Module):
                                         self.create_block(256, 256, 3, 1, 1, 0))
 
     def create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
-        return t.nn.Sequential(t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
-                               t.nn.BatchNorm2d(out_channel),
-                               t.nn.GELU(),
-                               t.nn.MaxPool2d(pooling))
+        net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
+                    t.nn.BatchNorm2d(out_channel),
+                    t.nn.GELU()]
+        if pooling > 0:
+            net_list.append(t.nn.MaxPool2d(pooling, pooling))
+        return t.nn.Sequential(*net_list)
 
     def forward(self, x):
         return self.backbone(x)
@@ -31,6 +33,33 @@ class Siamese(t.nn.Module):
     def forward(self, source, target):
         source = self.backbone(source)
         target = self.backbone(target)
-        score_map = F.Conv2d(source, target)
+        print(source.size(), target.size())
+        score_map = self.match_corr(target, source)
         return score_map
+
+
+    def match_corr(self, embed_ref, embed_srch):
+        """ Matches the two embeddings using the correlation layer. As per usual
+        it expects input tensors of the form [B, C, H, W].
+        Args:
+            embed_ref: (torch.Tensor) The embedding of the reference image, or
+                the template of reference (the average of many embeddings for
+                example).
+            embed_srch: (torch.Tensor) The embedding of the search image.
+        Returns:
+            match_map: (torch.Tensor) The correlation between
+        """
+        b, c, h, w = embed_srch.shape
+        # Here the correlation layer is implemented using a trick with the
+        # conv2d function using groups in order to do the correlation with
+        # batch dimension. Basically we concatenate each element of the batch
+        # in the channel dimension for the search image (making it
+        # [1 x (B.C) x H' x W']) and setting the number of groups to the size of
+        # the batch. This grouped convolution/correlation is equivalent to a
+        # correlation between the two images, though it is not obvious.
+        match_map = conv2d(embed_srch.view(1, b * c, h, w),
+                             embed_ref, groups=b, padding=(0, 1))
+        # Here we reorder the dimensions to get back the batch dimension.
+        match_map = match_map.permute(1, 0, 2, 3)
+        return match_map.squeeze(1).squeeze(1)
 
