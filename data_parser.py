@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 import os
 from torchvision.io import read_image, decode_image
 import random
+from utils import plot_samples
 
 
 class ImgPairDataset(Dataset):
@@ -64,27 +65,37 @@ class CroppedImgPairDataset(ImgPairDataset):
     def __getitem__(self, idx):
         source, target, displac = super(CroppedImgPairDataset, self).__getitem__(idx)
         cropped_target, crop_start = self.crop_img(target)
-        heatmap = self.get_heatmap(crop_start, displac)
+        heatmap = self.get_smooth_heatmap(crop_start, displac)
         return source, cropped_target, heatmap
 
     def crop_img(self, img):
-        crop_start = random.randint(0, self.width - self.crop_width - 1)
+        crop_start = random.randint(self.crop_width, self.width - 2*self.crop_width - 1)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start, displacement):
         frac = self.width // self.fraction - 1
         heatmap = t.zeros(frac).long()
-        idx = int((crop_start + displacement + self.crop_width//2) / self.fraction)
-        if 0 <= idx < frac:
-            heatmap[idx] = 1
+        idx = int((crop_start - displacement + self.crop_width//2) / self.fraction)
+        heatmap[idx] = 1
         return heatmap
 
-
+    def get_smooth_heatmap(self, crop_start, displacement):
+        surround = 8
+        frac = self.width // self.fraction - 1
+        heatmap = t.zeros(frac + surround)
+        idx = int((crop_start - displacement + self.crop_width//2) / self.fraction) + 3
+        idxs = t.tensor([-1, +1])
+        if 0 <= idx < frac:
+            heatmap[idx] = 1
+            heatmap[idx + idxs] = 0.8
+            heatmap[idx + 2*idxs] = 0.6
+            heatmap[idx + 3*idxs] = 0.4
+            heatmap[idx + 4*idxs] = 0.2
+        return heatmap[surround//2:-surround//2]
 
 
 if __name__ == '__main__':
-    dataset = CroppedImgPairDataset(16, 8)
+    dataset = CroppedImgPairDataset(64, 8)
     import matplotlib.pyplot as plt
-    plt.imshow(dataset[0][1].permute(1, 2, 0))
-    plt.imshow(dataset[0][0].permute(1, 2, 0))
-    plt.show()
+    a, b, c = dataset[0]
+    plot_samples(a, b, c)
