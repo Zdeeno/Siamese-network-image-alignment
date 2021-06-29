@@ -57,15 +57,19 @@ class ImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
+    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
+        self.smoothness = smoothness
 
     def __getitem__(self, idx):
         source, target, displac = super(CroppedImgPairDataset, self).__getitem__(idx)
         cropped_target, crop_start = self.crop_img(target)
-        heatmap = self.get_smooth_heatmap(crop_start, displac)
+        if self.smoothness == 0:
+            heatmap = self.get_heatmap(crop_start, displac)
+        else:
+            heatmap = self.get_smooth_heatmap(crop_start, displac)
         return source, cropped_target, heatmap
 
     def crop_img(self, img):
@@ -80,22 +84,20 @@ class CroppedImgPairDataset(ImgPairDataset):
         return heatmap
 
     def get_smooth_heatmap(self, crop_start, displacement):
-        surround = 8
+        surround = self.smoothness * 2
         frac = self.width // self.fraction - 1
         heatmap = t.zeros(frac + surround)
         idx = int((crop_start - displacement + self.crop_width//2) / self.fraction) + 3
         idxs = t.tensor([-1, +1])
-        if 0 <= idx < frac:
-            heatmap[idx] = 1
-            heatmap[idx + idxs] = 0.8
-            heatmap[idx + 2*idxs] = 0.6
-            heatmap[idx + 3*idxs] = 0.4
-            heatmap[idx + 4*idxs] = 0.2
+        for i in range(self.smoothness):
+            for j in idx + i*idxs:
+                if 0 <= j < heatmap.size(0):
+                    heatmap[j] = 1 - i * (1/self.smoothness)
         return heatmap[surround//2:-surround//2]
 
 
 if __name__ == '__main__':
-    dataset = CroppedImgPairDataset(64, 8)
+    dataset = CroppedImgPairDataset(64, 8, 3)
     import matplotlib.pyplot as plt
     a, b, c = dataset[0]
     plot_samples(a, b, c)
