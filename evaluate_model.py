@@ -76,10 +76,10 @@ def eval_displacement():
                 valid += 1
 
             if idx > 250:
-                np.savetxt("results/eval_" + MODEL + "/errors.csv", errors, delimiter=",")
                 break
 
         print("Evaluated:", "\nAbsolute mean error:", abs_err/idx, "\nPredictions in tolerance:", valid*100/idx, "%")
+        np.savetxt("results/eval_" + MODEL + "/errors.csv", errors, delimiter=",")
 
 
 def eval_heatmap():

@@ -1,7 +1,7 @@
 import random
 import torch as t
 from parser_nordland import CroppedImgPairDataset
-from model import Siamese, get_custom_CNN, get_pretrained_VGG11, save_model, load_model
+from model import Transformer, get_custom_CNN, get_pretrained_VGG11, save_model, load_model
 from torch.utils.data import DataLoader
 from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
@@ -10,7 +10,7 @@ from tqdm import tqdm
 from utils import plot_samples
 
 
-BATCH_SIZE = 16
+BATCH_SIZE = 4
 EPOCHS = 1000
 LR = 1e-5
 EVAL_RATE = 1
@@ -18,21 +18,26 @@ CROP_SIZE = 32
 FRACTION = 16
 PAD = 0
 SMOOTHNESS = 0
+D_MODEL = 576
+LAYERS = 4
+HEADS = 8
+DIM = 256
+
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
 
-dataset = CroppedImgPairDataset(CROP_SIZE, FRACTION, SMOOTHNESS, target_pad=True)
+dataset = CroppedImgPairDataset(CROP_SIZE, FRACTION, SMOOTHNESS)
 val, train = t.utils.data.random_split(dataset, [int(0.1 * len(dataset)), int(0.9 * len(dataset))])
 train_loader = DataLoader(train, BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val, 1, shuffle=False)
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
-model = Siamese(backbone, padding=PAD).to(device)
+model = Transformer(backbone, D_MODEL, LAYERS, HEADS, DIM).to(device)
 optimizer = AdamW(model.parameters(), lr=LR)
-loss = CrossEntropyLoss()
-# loss = BCEWithLogitsLoss()
+# loss = CrossEntropyLoss()
+loss = BCEWithLogitsLoss()
 
 
 def train_loop(epoch):
@@ -45,9 +50,8 @@ def train_loop(epoch):
         # print(out.size(), heatmap.size())
         optimizer.zero_grad()
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
-        l = loss(out, t.argmax(heatmap.long(), dim=-1))
-        # heatmap[heatmap > 0] = 1.0
-        # l = loss(out, heatmap)
+        # l = loss(out, t.argmax(heatmap.long(), dim=-1))
+        l = loss(out, heatmap.float())
         loss_sum += l.cpu().detach().numpy()
         l.backward()
         optimizer.step()
@@ -68,7 +72,7 @@ def eval_loop(epoch):
                              heatmap.squeeze(0).cpu(),
                              prediction=out,
                              name=str(idx),
-                             dir="results_siam/" + str(epoch) + "/")
+                             dir="results_attn/" + str(epoch) + "/")
                 if idx > 100:
                     break
 
@@ -77,7 +81,7 @@ if __name__ == '__main__':
     # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results/model_5.pt", optimizer=optimizer)
 
     for epoch in range(0, EPOCHS):
-        save_model(model, "siam", epoch, optimizer)
+        save_model(model, "attn", epoch, optimizer)
         if epoch % EVAL_RATE == 0:
             eval_loop(epoch)
         train_loop(epoch)

@@ -1,6 +1,7 @@
 import torch as t
 from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
+import math
 
 
 class CNN(t.nn.Module):
@@ -11,7 +12,7 @@ class CNN(t.nn.Module):
                                         self._create_block(16, 64, 3, 1, 1, 2),
                                         self._create_block(64, 256, 3, 1, 1, 2),
                                         self._create_block(256, 512, 3, 1, 1, 2),
-                                        self._create_block(512, 512, 3, 1, 1, 0))
+                                        self._create_block(512, 32, 3, 1, 1, 0))     # old models with 512 final filter
 
     def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
         net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
@@ -127,13 +128,56 @@ class Siamese(t.nn.Module):
         return match_map
 
 
-def save_model(model, epoch, optimizer=None):
+# TRANSFORMER MODEL ------------------------------------------
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = t.zeros(max_len, d_model)
+        position = t.arange(0, max_len, dtype=t.float).unsqueeze(1)
+        div_term = t.exp(t.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = t.sin(position * div_term)
+        pe[:, 1::2] = t.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+
+class Transformer(t.nn.Module):
+    def __init__(self, backbone, d_model, num_layers, n_head, dim, dropout=0.1):
+        super(Transformer, self).__init__()
+        self.backbone = backbone
+        self.pe = PositionalEncoding(d_model)
+        self.transformer = t.nn.Transformer(d_model, n_head, num_layers, num_layers, dim, dropout, "gelu")
+
+    def forward(self, source, target):
+        source = self.backbone(source)
+        target = self.backbone(target)
+        # (B, CH, H, W) -> (W, B, CHxH)
+        source = source.transpose(1, 3).transpose(0, 1).flatten(2, 3)
+        target = target.transpose(1, 3).transpose(0, 1).flatten(2, 3)
+        source = self.pe(source)
+        target = self.pe(target)
+        dec_out = self.transformer(target, source)
+        dec_out = t.mean(dec_out, dim=-1)
+        out = dec_out.flatten(-1).transpose(0, 1)
+        return out  # (B, W)
+
+
+def save_model(model, name, epoch, optimizer=None):
     t.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict() if optimizer is not None else None
-    }, "./results/model_" + str(epoch) + ".pt")
-    print("Model saved to: " + "./results/model_" + str(epoch) + ".pt")
+    }, "./results_" + name + "/model_" + str(epoch) + ".pt")
+    print("Model saved to: " + "./results_" + name + "/model_" + str(epoch) + ".pt")
 
 
 def load_model(model, path, optimizer=None):

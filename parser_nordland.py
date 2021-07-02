@@ -48,7 +48,7 @@ class ImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, augment=True, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
+    def __init__(self, crop_width, fraction, smoothness, target_pad=False, augment=True, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
@@ -57,6 +57,7 @@ class CroppedImgPairDataset(ImgPairDataset):
         self.use_augment = augment
         self.affine = RandomAffine(t.tensor(10.0), t.tensor([(self.fraction*2)/self.width, (self.fraction*4)/self.width]), align_corners=False)
         self.flip = Hflip()
+        self.pad = target_pad
 
     def __getitem__(self, idx):
         source, target = super(CroppedImgPairDataset, self).__getitem__(idx)
@@ -79,10 +80,13 @@ class CroppedImgPairDataset(ImgPairDataset):
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start):
-        frac = self.width // self.fraction - 1
+        frac = self.width // self.fraction
+        if self.pad:
+            frac -= 1
         heatmap = t.zeros(frac).long()
         idx = int((crop_start + self.crop_width//2) / self.fraction)
         heatmap[idx] = 1
+        heatmap[idx + 1] = 1
         return heatmap
 
     def get_smooth_heatmap(self, crop_start):
