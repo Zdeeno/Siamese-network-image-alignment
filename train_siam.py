@@ -1,23 +1,23 @@
 import random
 import torch as t
 from parser_nordland import CroppedImgPairDataset
-from model import Siamese, get_custom_CNN, get_pretrained_VGG11, save_model
+from model import Siamese, get_custom_CNN, get_pretrained_VGG11, save_model, load_model
 from torch.utils.data import DataLoader
-from torch.optim import AdamW
+from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
 from utils import plot_samples
 
 
-BATCH_SIZE = 24
+BATCH_SIZE = 16
 EPOCHS = 1000
-LR = 1e-4
+LR = 1e-5
 EVAL_RATE = 1
 CROP_SIZE = 32
 FRACTION = 16
 PAD = 0
-SMOOTHNESS = 2
+SMOOTHNESS = 1
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
@@ -45,7 +45,9 @@ def train_loop(epoch):
         # print(out.size(), heatmap.size())
         optimizer.zero_grad()
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
-        l = loss(out, heatmap.float())
+        # l = loss(out, t.argmax(heatmap.long(), dim=-1))
+        # heatmap[heatmap > 0] = 1.0
+        l = loss(out, heatmap)
         loss_sum += l.cpu().detach().numpy()
         l.backward()
         optimizer.step()
@@ -57,7 +59,7 @@ def eval_loop(epoch):
     with t.no_grad():
         print("Evaluating model after epoch", epoch)
         for idx, batch in enumerate(val_loader):
-            if idx % 1000 == 0:
+            if idx % 10 == 0:
                 source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
                 out = model(source, target)
                 out = softmax(t.sigmoid(out.squeeze(0).cpu()), dim=0)
@@ -67,13 +69,14 @@ def eval_loop(epoch):
                              prediction=out,
                              name=str(idx),
                              dir="results/" + str(epoch) + "/")
-                if idx > 10000:
+                if idx > 100:
                     break
 
 
 if __name__ == '__main__':
+    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results/model_5.pt", optimizer=optimizer)
 
-    for epoch in range(EPOCHS):
+    for epoch in range(0, EPOCHS):
         save_model(model, epoch, optimizer)
         if epoch % EVAL_RATE == 0:
             eval_loop(epoch)

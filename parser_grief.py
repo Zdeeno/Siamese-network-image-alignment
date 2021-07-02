@@ -57,14 +57,21 @@ class ImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
+    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/grief_jpg", transforms=None):
         super(CroppedImgPairDataset, self).__init__(path=path)
+        self.width = 512
+        self.height = 192
         self.crop_width = crop_width
         self.fraction = fraction
         self.smoothness = smoothness
+        self.tr = transforms
 
     def __getitem__(self, idx):
         source, target, displac = super(CroppedImgPairDataset, self).__getitem__(idx)
+        displac = displac/2
+        if self.tr is not None:
+            source = self.tr(source)
+            target = self.tr(target)
         cropped_target, crop_start = self.crop_img(target)
         if self.smoothness == 0:
             heatmap = self.get_heatmap(crop_start, displac)
@@ -80,7 +87,8 @@ class CroppedImgPairDataset(ImgPairDataset):
         frac = self.width // self.fraction - 1
         heatmap = t.zeros(frac).long()
         idx = int((crop_start - displacement + self.crop_width//2) / self.fraction)
-        heatmap[idx] = 1
+        if 0 <= idx < 31:
+            heatmap[idx] = 1
         return heatmap
 
     def get_smooth_heatmap(self, crop_start, displacement):

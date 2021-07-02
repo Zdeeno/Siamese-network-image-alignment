@@ -6,6 +6,9 @@ import random
 from utils import plot_samples
 import itertools
 from glob import glob
+from kornia.augmentation import RandomAffine
+from kornia import Hflip
+import numpy as np
 
 
 class ImgPairDataset(Dataset):
@@ -45,14 +48,22 @@ class ImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
+    def __init__(self, crop_width, fraction, smoothness, augment=True, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
         self.smoothness = smoothness
+        self.center_mask = 48
+        self.use_augment = augment
+        self.affine = RandomAffine(t.tensor(10.0), t.tensor([(self.fraction*2)/self.width, (self.fraction*4)/self.width]), align_corners=False)
+        self.flip = Hflip()
 
     def __getitem__(self, idx):
         source, target = super(CroppedImgPairDataset, self).__getitem__(idx)
+
+        if self.use_augment:
+            source, target = self.augment(source, target)
+
         cropped_target, crop_start = self.crop_img(target)
         if self.smoothness == 0:
             heatmap = self.get_heatmap(crop_start)
@@ -61,7 +72,10 @@ class CroppedImgPairDataset(ImgPairDataset):
         return source, cropped_target, heatmap
 
     def crop_img(self, img):
-        crop_start = random.randint(self.crop_width, self.width - 2*self.crop_width - 1)
+        # crop - avoid center (rails) and edges
+        crops = [random.randint(self.crop_width, int(self.width/2 - self.center_mask - self.crop_width)),
+                 random.randint(int(self.width/2 + self.center_mask), self.width - 2*self.crop_width - 1)]
+        crop_start = random.choice(crops)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start):
@@ -76,12 +90,21 @@ class CroppedImgPairDataset(ImgPairDataset):
         frac = self.width // self.fraction - 1
         heatmap = t.zeros(frac + surround)
         idx = int((crop_start + self.crop_width//2) / self.fraction) + self.smoothness
-        idxs = t.tensor([-1, +1])
-        for i in range(self.smoothness):
-            for j in idx + i*idxs:
+        heatmap[idx] = 1
+        idxs = np.array([-1, +1])
+        for i in range(1, self.smoothness + 1):
+            indexes = list(idx + i * idxs)
+            for j in indexes:
                 if 0 <= j < heatmap.size(0):
-                    heatmap[j] = 1 - i * (1/self.smoothness)
+                    heatmap[j] = 1 - i * (1/(self.smoothness + 1))
         return heatmap[surround//2:-surround//2]
+
+    def augment(self, source, target):
+        if random.random() > 0.5:
+            source = self.flip(source)
+            target = self.flip(target)
+        source = self.affine(source)
+        return source.squeeze(0), target
 
 
 if __name__ == '__main__':
