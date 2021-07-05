@@ -7,9 +7,10 @@ from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
-from utils import plot_samples
+from utils import plot_samples, batch_augmentations, affine_augmentation
 
 
+# TODO: change avg in architecture and pass everything including rails
 BATCH_SIZE = 4
 EPOCHS = 1000
 LR = 1e-5
@@ -46,6 +47,7 @@ def train_loop(epoch):
     print("Training model epoch", epoch)
     for batch in tqdm(train_loader):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+        source = affine_augmentation(source)
         out = model(source, target)
         # print(out.size(), heatmap.size())
         optimizer.zero_grad()
@@ -65,6 +67,7 @@ def eval_loop(epoch):
         for idx, batch in enumerate(val_loader):
             if idx % 10 == 0:
                 source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+                source = affine_augmentation(source)
                 out = model(source, target)
                 out = softmax(t.sigmoid(out.squeeze(0).cpu()), dim=0)
                 plot_samples(source.squeeze(0).cpu(),
@@ -78,7 +81,7 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results/model_5.pt", optimizer=optimizer)
+    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_attn/model_13.pt", optimizer=optimizer)
 
     for epoch in range(0, EPOCHS):
         save_model(model, "attn", epoch, optimizer)

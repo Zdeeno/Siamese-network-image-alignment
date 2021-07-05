@@ -1,3 +1,5 @@
+import random
+
 import torch as t
 from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
@@ -146,7 +148,11 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
+        if self.training:
+            shift = random.randint(0, 16)
+        else:
+            shift = 0
+        x = x + self.pe[shift:x.size(0)+shift, :]
         return self.dropout(x)
 
 
@@ -156,6 +162,7 @@ class Transformer(t.nn.Module):
         self.backbone = backbone
         self.pe = PositionalEncoding(d_model)
         self.transformer = t.nn.Transformer(d_model, n_head, num_layers, num_layers, dim, dropout, "gelu")
+        self.out = t.nn.Linear(d_model, 1)
 
     def forward(self, source, target):
         source = self.backbone(source)
@@ -163,10 +170,9 @@ class Transformer(t.nn.Module):
         # (B, CH, H, W) -> (W, B, CHxH)
         source = source.transpose(1, 3).transpose(0, 1).flatten(2, 3)
         target = target.transpose(1, 3).transpose(0, 1).flatten(2, 3)
-        source = self.pe(source)
         target = self.pe(target)
         dec_out = self.transformer(target, source)
-        dec_out = t.mean(dec_out, dim=-1)
+        dec_out = self.out(dec_out).squeeze(-1)
         out = dec_out.flatten(-1).transpose(0, 1)
         return out  # (B, W)
 

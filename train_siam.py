@@ -7,12 +7,12 @@ from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
-from utils import plot_samples
+from utils import plot_samples, batch_augmentations
 
 
 BATCH_SIZE = 16
 EPOCHS = 1000
-LR = 1e-5
+LR = 3e-5
 EVAL_RATE = 1
 CROP_SIZE = 32
 FRACTION = 16
@@ -20,6 +20,7 @@ PAD = 0
 SMOOTHNESS = 0
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
+batch_augmentations = batch_augmentations.to(device)
 
 
 dataset = CroppedImgPairDataset(CROP_SIZE, FRACTION, SMOOTHNESS, target_pad=True)
@@ -41,6 +42,7 @@ def train_loop(epoch):
     print("Training model epoch", epoch)
     for batch in tqdm(train_loader):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+        source = batch_augmentations(source)
         out = model(source, target)
         # print(out.size(), heatmap.size())
         optimizer.zero_grad()
@@ -61,6 +63,7 @@ def eval_loop(epoch):
         for idx, batch in enumerate(val_loader):
             if idx % 10 == 0:
                 source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+                source = batch_augmentations(source)
                 out = model(source, target)
                 out = softmax(t.sigmoid(out.squeeze(0).cpu()), dim=0)
                 plot_samples(source.squeeze(0).cpu(),
@@ -74,9 +77,9 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results/model_5.pt", optimizer=optimizer)
+    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_6.pt", optimizer=optimizer)
 
-    for epoch in range(0, EPOCHS):
+    for epoch in range(6, EPOCHS):
         save_model(model, "siam", epoch, optimizer)
         if epoch % EVAL_RATE == 0:
             eval_loop(epoch)

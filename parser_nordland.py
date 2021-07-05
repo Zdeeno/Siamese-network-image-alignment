@@ -6,8 +6,7 @@ import random
 from utils import plot_samples
 import itertools
 from glob import glob
-from kornia.augmentation import RandomAffine
-from kornia import Hflip
+import kornia as K
 import numpy as np
 
 
@@ -48,22 +47,19 @@ class ImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, target_pad=False, augment=True, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
+    def __init__(self, crop_width, fraction, smoothness, target_pad=False, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
         self.smoothness = smoothness
         self.center_mask = 48
-        self.use_augment = augment
-        self.affine = RandomAffine(t.tensor(10.0), t.tensor([(self.fraction*2)/self.width, (self.fraction*4)/self.width]), align_corners=False)
-        self.flip = Hflip()
+        self.flip = K.Hflip()
         self.pad = target_pad
 
     def __getitem__(self, idx):
         source, target = super(CroppedImgPairDataset, self).__getitem__(idx)
 
-        if self.use_augment:
-            source, target = self.augment(source, target)
+        source, target = self.augment(source, target)
 
         cropped_target, crop_start = self.crop_img(target)
         if self.smoothness == 0:
@@ -104,10 +100,11 @@ class CroppedImgPairDataset(ImgPairDataset):
         return heatmap[surround//2:-surround//2]
 
     def augment(self, source, target):
+        if random.random() > 0.8:
+            target = source.clone()
         if random.random() > 0.5:
             source = self.flip(source)
             target = self.flip(target)
-        source = self.affine(source)
         return source.squeeze(0), target
 
 

@@ -6,6 +6,31 @@ from pathlib import Path
 import kornia as K
 
 
+batch_augmentations = t.nn.Sequential(
+    K.augmentation.RandomAffine(t.tensor(10.0),
+                                t.tensor([16 / 512, (16 * 4) / 512]),
+                                align_corners=False, p=0.2),
+    K.augmentation.RandomBoxBlur(p=0.2),
+    K.augmentation.RandomChannelShuffle(p=0.2),
+    K.augmentation.RandomPerspective(p=0.2),
+    # K.augmentation.RandomPosterize(p=0.2),
+    K.augmentation.RandomSharpness(p=0.2),
+    K.augmentation.RandomSolarize(p=0.2),
+    K.augmentation.ColorJitter(0.1, 0.1, 0.1, 0.1),
+    K.augmentation.RandomGaussianNoise(p=0.2),
+    K.augmentation.RandomElasticTransform(p=0.2),
+    # K.augmentation.RandomEqualize(p=0.2),
+    K.augmentation.RandomGrayscale(p=0.2)
+)
+
+
+affine_augmentation = t.nn.Sequential(
+    K.augmentation.RandomAffine(t.tensor(10.0),
+                                t.tensor([16 / 512, (16 * 4) / 512]),
+                                align_corners=False, p=0.2),
+)
+
+
 def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/0/"):
     if prediction is None:
         f, axarr = plt.subplots(2)
