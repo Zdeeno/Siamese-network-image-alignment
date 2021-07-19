@@ -1,33 +1,49 @@
+from typing import Dict, Optional
+
 import matplotlib.pyplot as plt
+import torch
 import torch as t
 from torch.nn import functional as F
 import numpy as np
 from pathlib import Path
 import kornia as K
+from styleaug import StyleAugmentor
+import random
 
+
+class GANAugemntation(t.nn.Module):
+
+    def __init__(self, p=0.5):
+        super(GANAugemntation, self).__init__()
+        self.augmentor = StyleAugmentor()
+        self.p = p
+
+    def forward(self, x):
+        with torch.no_grad():
+            if random.random() < self.p and x.size(-1) > 40:
+                return self.augmentor(x, alpha=0.25)
+            else:
+                return x
+
+
+AUG_P = 0.1
 
 batch_augmentations = t.nn.Sequential(
+    GANAugemntation(p=0.2),
     K.augmentation.RandomAffine(t.tensor(10.0),
-                                t.tensor([16 / 512, (16 * 4) / 512]),
-                                align_corners=False, p=0.2),
-    K.augmentation.RandomBoxBlur(p=0.2),
-    K.augmentation.RandomChannelShuffle(p=0.2),
-    K.augmentation.RandomPerspective(p=0.2),
-    # K.augmentation.RandomPosterize(p=0.2),
-    K.augmentation.RandomSharpness(p=0.2),
-    K.augmentation.RandomSolarize(p=0.2),
-    K.augmentation.ColorJitter(0.1, 0.1, 0.1, 0.1),
-    K.augmentation.RandomGaussianNoise(p=0.2),
-    K.augmentation.RandomElasticTransform(p=0.2),
-    # K.augmentation.RandomEqualize(p=0.2),
-    K.augmentation.RandomGrayscale(p=0.2)
-)
-
-
-affine_augmentation = t.nn.Sequential(
-    K.augmentation.RandomAffine(t.tensor(10.0),
-                                t.tensor([16 / 512, (16 * 4) / 512]),
-                                align_corners=False, p=0.2),
+                                t.tensor([16 / 512, 0.25]),
+                                align_corners=False, p=0.5),
+    K.augmentation.RandomBoxBlur(p=AUG_P),
+    K.augmentation.RandomChannelShuffle(p=AUG_P),
+    K.augmentation.RandomPerspective(distortion_scale=0.1, p=0.5),
+    # K.augmentation.RandomPosterize(p=0.2),    CPU only
+    K.augmentation.RandomSharpness(p=AUG_P),
+    K.augmentation.RandomSolarize(p=AUG_P),
+    K.augmentation.ColorJitter(0.1, 0.1, 0.1, 0.1, p=AUG_P),
+    K.augmentation.RandomGaussianNoise(std=0.2, p=AUG_P),
+    K.augmentation.RandomElasticTransform(p=AUG_P),
+    # K.augmentation.RandomEqualize(p=0.2),     CPU only
+    K.augmentation.RandomGrayscale(p=AUG_P)
 )
 
 
@@ -109,7 +125,6 @@ def get_shift(img_width, crop_width, histogram, crops_idx):
         final_hist_start = hist_center//2 + crop_displac_in_hist
         final_hist[final_hist_start:final_hist_start+hist_size] += histogram[histnum - idx - 1]
         bin_size[final_hist_start:final_hist_start+hist_size] += 1
-    # print(bin_size, final_hist)
     final_hist /= bin_size
     return final_hist[hist_size//2:-hist_size//2]
 

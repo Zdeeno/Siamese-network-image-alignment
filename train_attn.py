@@ -13,13 +13,13 @@ from utils import plot_samples, batch_augmentations, affine_augmentation
 # TODO: change avg in architecture and pass everything including rails
 BATCH_SIZE = 4
 EPOCHS = 1000
-LR = 1e-5
+LR = 3e-5
 EVAL_RATE = 1
-CROP_SIZE = 32
-FRACTION = 16
+CROP_SIZE = 54
+FRACTION = 8
 PAD = 0
-SMOOTHNESS = 0
-D_MODEL = 576
+SMOOTHNESS = 3
+D_MODEL = 512
 LAYERS = 4
 HEADS = 8
 DIM = 256
@@ -53,6 +53,7 @@ def train_loop(epoch):
         optimizer.zero_grad()
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
         # l = loss(out, t.argmax(heatmap.long(), dim=-1))
+        heatmap[heatmap > 0] = 1.0
         l = loss(out, heatmap.float())
         loss_sum += l.cpu().detach().numpy()
         l.backward()
@@ -81,7 +82,7 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_attn/model_13.pt", optimizer=optimizer)
+    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_attn/model_13.pt", optimizer=optimizer)
 
     for epoch in range(0, EPOCHS):
         save_model(model, "attn", epoch, optimizer)

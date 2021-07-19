@@ -14,16 +14,15 @@ BATCH_SIZE = 16
 EPOCHS = 1000
 LR = 3e-5
 EVAL_RATE = 1
-CROP_SIZE = 32
-FRACTION = 16
-PAD = 0
-SMOOTHNESS = 0
+CROP_SIZES = [24, 40, 56, 72, 88, 104]
+FRACTION = 8
+PAD = 3
+SMOOTHNESS = 3
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 batch_augmentations = batch_augmentations.to(device)
 
-
-dataset = CroppedImgPairDataset(CROP_SIZE, FRACTION, SMOOTHNESS, target_pad=True)
+dataset = CroppedImgPairDataset(CROP_SIZES[2], FRACTION, SMOOTHNESS)
 val, train = t.utils.data.random_split(dataset, [int(0.1 * len(dataset)), int(0.9 * len(dataset))])
 train_loader = DataLoader(train, BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val, 1, shuffle=False)
@@ -32,31 +31,38 @@ val_loader = DataLoader(val, 1, shuffle=False)
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 model = Siamese(backbone, padding=PAD).to(device)
 optimizer = AdamW(model.parameters(), lr=LR)
-loss = CrossEntropyLoss()
-# loss = BCEWithLogitsLoss()
+# loss = CrossEntropyLoss()
+loss = BCEWithLogitsLoss()
 
 
 def train_loop(epoch):
+    global PAD
     model.train()
     loss_sum = 0
     print("Training model epoch", epoch)
     for batch in tqdm(train_loader):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
         source = batch_augmentations(source)
-        out = model(source, target)
-        # print(out.size(), heatmap.size())
+        target = batch_augmentations(target)
+        out = model(source, target, padding=PAD)
         optimizer.zero_grad()
+        heatmap[heatmap > 0] = 1.0
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
-        l = loss(out, t.argmax(heatmap.long(), dim=-1))
-        # heatmap[heatmap > 0] = 1.0
-        # l = loss(out, heatmap)
+        # l = loss(out, t.argmax(heatmap.long(), dim=-1))
+        l = loss(out, heatmap)
         loss_sum += l.cpu().detach().numpy()
         l.backward()
         optimizer.step()
+
+        r_choice = random.choice(CROP_SIZES)
+        PAD = (r_choice - 8) // 16
+        dataset.set_crop_size(r_choice)
+
     print("Training of epoch", epoch, "ended with loss", loss_sum / len(train_loader))
 
 
 def eval_loop(epoch):
+    global PAD
     model.eval()
     with t.no_grad():
         print("Evaluating model after epoch", epoch)
@@ -64,22 +70,29 @@ def eval_loop(epoch):
             if idx % 10 == 0:
                 source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
                 source = batch_augmentations(source)
-                out = model(source, target)
-                out = softmax(t.sigmoid(out.squeeze(0).cpu()), dim=0)
+                target = batch_augmentations(target)
+                out = model(source, target, padding=PAD)
+                out = t.sigmoid(out.squeeze(0).cpu())
                 plot_samples(source.squeeze(0).cpu(),
                              target.squeeze(0).cpu(),
                              heatmap.squeeze(0).cpu(),
                              prediction=out,
                              name=str(idx),
                              dir="results_siam/" + str(epoch) + "/")
+
+                r_choice = random.choice(CROP_SIZES)
+                PAD = (r_choice - 8) // 16
+                dataset.set_crop_size(r_choice)
+
                 if idx > 100:
                     break
 
 
 if __name__ == '__main__':
-    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_6.pt", optimizer=optimizer)
+    LOAD_EPOCH = 0
+    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
-    for epoch in range(6, EPOCHS):
+    for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)
         if epoch % EVAL_RATE == 0:
             eval_loop(epoch)

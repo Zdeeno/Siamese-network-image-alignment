@@ -1,26 +1,89 @@
 import random
-
 import torch as t
 from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
 import math
+from einops import rearrange
+from torch import functional as F
+
+
+class Involution(nn.Module):
+    """
+    Implementation of `Involution: Inverting the Inherence of Convolution for Visual Recognition`.
+    """
+
+    def __init__(self, in_channels, out_channels, groups=1, kernel_size=3, stride=1, reduction_ratio=2):
+
+        super().__init__()
+
+        channels_reduced = max(1, in_channels // reduction_ratio)
+        padding = kernel_size // 2
+
+        self.reduce = nn.Sequential(
+            nn.Conv2d(in_channels, channels_reduced, 1),
+            nn.BatchNorm2d(channels_reduced),
+            nn.ReLU(inplace=True))
+
+        self.span = nn.Conv2d(channels_reduced, kernel_size * kernel_size * groups, 1)
+        self.unfold = nn.Unfold(kernel_size, padding=padding, stride=stride)
+
+        self.resampling = None if in_channels == out_channels else nn.Conv2d(in_channels, out_channels, 1)
+
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.groups = groups
+
+    @classmethod
+    def get_name(cls):
+        """
+        Return this layer name.
+        Returns:
+            str: layer name.
+        """
+        return 'Involution'
+
+    def forward(self, input_tensor):
+        """
+        Calculate Involution.
+        override function from PyTorch.
+        """
+        _, _, height, width = input_tensor.size()
+        if self.stride > 1:
+            out_size = lambda x: (x + 2 * self.padding - self.kernel_size) // self.stride + 1
+            height, width = out_size(height), out_size(width)
+        uf_x = rearrange(self.unfold(input_tensor), 'b (g d k j) (h w) -> b g d (k j) h w',
+                         g=self.groups, k=self.kernel_size, j=self.kernel_size, h=height, w=width)
+
+        if self.stride > 1:
+            input_tensor = F.adaptive_avg_pool2d(input_tensor, (height, width))
+        kernel = rearrange(self.span(self.reduce(input_tensor)), 'b (k j g) h w -> b g (k j) h w',
+                           k=self.kernel_size, j=self.kernel_size)
+
+        out = rearrange(t.einsum('bgdxhw, bgxhw -> bgdhw', uf_x, kernel), 'b g d h w -> b (g d) h w')
+
+        if self.resampling:
+            out = self.resampling(out)
+
+        return out.contiguous()
 
 
 class CNN(t.nn.Module):
 
     def __init__(self):
         super(CNN, self).__init__()
-        self.backbone = t.nn.Sequential(self._create_block(3, 16, 3, 1, 1, 2),
-                                        self._create_block(16, 64, 3, 1, 1, 2),
-                                        self._create_block(64, 256, 3, 1, 1, 2),
-                                        self._create_block(256, 512, 3, 1, 1, 2),
-                                        self._create_block(512, 32, 3, 1, 1, 0))     # old models with 512 final filter
+        self.backbone = t.nn.Sequential(self._create_block(3, 16, 3, 1, 1, (2, 2)),
+                                        self._create_block(16, 64, 3, 1, 1, (2, 2)),
+                                        self._create_block(64, 256, 3, 1, 1, (2, 2)),
+                                        self._create_block(256, 512, 3, 1, 1, (2, 1)),
+                                        self._create_block(512, 32, 3, 1, 1, (3, 1)))
 
     def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
         net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
+                    # Involution(in_channel, out_channel),
                     t.nn.BatchNorm2d(out_channel),
                     t.nn.GELU()]
-        if pooling > 0:
+        if pooling[0] > 0 or pooling[1] > 0:
             net_list.append(t.nn.MaxPool2d(pooling, pooling))
         return t.nn.Sequential(*net_list)
 
@@ -96,14 +159,14 @@ class Siamese(t.nn.Module):
         self.out_batchnorm = t.nn.BatchNorm2d(1)
         self.padding = padding
 
-    def forward(self, source, target):
+    def forward(self, source, target, padding=None):
         source = self.backbone(source)
         target = self.backbone(target)
-        score_map = self.match_corr(target, source)
+        score_map = self.match_corr(target, source, padding=padding)
         score_map = self.out_batchnorm(score_map)
         return score_map.squeeze(1).squeeze(1)
 
-    def match_corr(self, embed_ref, embed_srch):
+    def match_corr(self, embed_ref, embed_srch, padding=None):
         """ Matches the two embeddings using the correlation layer. As per usual
         it expects input tensors of the form [B, C, H, W].
         Args:
@@ -114,6 +177,8 @@ class Siamese(t.nn.Module):
         Returns:
             match_map: (torch.Tensor) The correlation between
         """
+        if padding is None:
+            padding = self.padding
         b, c, h, w = embed_srch.shape
         _, _, h_ref, w_ref = embed_ref.shape
         # Here the correlation layer is implemented using a trick with the
@@ -124,7 +189,7 @@ class Siamese(t.nn.Module):
         # the batch. This grouped convolution/correlation is equivalent to a
         # correlation between the two images, though it is not obvious.
         match_map = conv2d(embed_srch.view(1, b * c, h, w),
-                             embed_ref, groups=b, padding=(0, self.padding))
+                             embed_ref, groups=b, padding=(0, padding))
         # Here we reorder the dimensions to get back the batch dimension.
         match_map = match_map.permute(1, 0, 2, 3)
         return match_map
@@ -147,8 +212,8 @@ class PositionalEncoding(nn.Module):
         pe = pe.unsqueeze(0).transpose(0, 1)
         self.register_buffer('pe', pe)
 
-    def forward(self, x):
-        if self.training:
+    def forward(self, x, rnd=True):
+        if self.training and rnd:
             shift = random.randint(0, 16)
         else:
             shift = 0
@@ -170,10 +235,12 @@ class Transformer(t.nn.Module):
         # (B, CH, H, W) -> (W, B, CHxH)
         source = source.transpose(1, 3).transpose(0, 1).flatten(2, 3)
         target = target.transpose(1, 3).transpose(0, 1).flatten(2, 3)
-        target = self.pe(target)
+        target = self.pe(target, rnd=False)
+        source = self.pe(source, rnd=True)
         dec_out = self.transformer(target, source)
         dec_out = self.out(dec_out).squeeze(-1)
         out = dec_out.flatten(-1).transpose(0, 1)
+        print(source.size(), target.size(), out.size())
         return out  # (B, W)
 
 

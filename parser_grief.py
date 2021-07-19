@@ -8,12 +8,15 @@ from utils import plot_samples
 
 class ImgPairDataset(Dataset):
 
-    def __init__(self, path="/home/zdeeno/Documents/Datasets/grief_jpg"):
+    def __init__(self, path="/home/zdeeno/Documents/Datasets/grief_jpg", dataset=None):
         super(ImgPairDataset, self).__init__()
         self.width = 1024
         self.height = 384
 
-        lvl1_subfolders = [f.path for f in os.scandir(path) if f.is_dir()]
+        if dataset is None:
+            lvl1_subfolders = [f.path for f in os.scandir(path) if f.is_dir()]
+        else:
+            lvl1_subfolders = [os.path.join(path, dataset)]
         lvl2_subfolders = []
         for subfolder in lvl1_subfolders:
             lvl2_subfolder = [f.path for f in os.scandir(subfolder) if f.is_dir() and "season" in f.name]
