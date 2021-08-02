@@ -46,7 +46,7 @@ class ImgPairDataset(Dataset):
         return len(self.annotated_img_pairs)
 
     def __getitem__(self, idx):
-        if random.random() > 0.5:
+        if random.random() > 0.0:
             a, b = 0, 1
             displacement = self.annotated_img_pairs[idx][2]
         else:

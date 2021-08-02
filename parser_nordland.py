@@ -66,21 +66,24 @@ class CroppedImgPairDataset(ImgPairDataset):
             heatmap = self.get_smooth_heatmap(crop_start)
         return source, cropped_target, heatmap
 
-    def set_crop_size(self, crop_size):
+    def set_crop_size(self, crop_size, smoothness=None):
         self.crop_width = crop_size
-        self.smoothness = (crop_size - 8)//16
+        if smoothness is None:
+            self.smoothness = (crop_size // 8) - 1
+        else:
+            self.smoothness = smoothness
 
     def crop_img(self, img):
         # crop - avoid center (rails) and edges
-        crops = [random.randint(self.crop_width // 2, int(self.width/2 - self.center_mask - self.crop_width)),
-                 random.randint(int(self.width/2 + self.center_mask), self.width - self.crop_width*1.5)]
+        crops = [random.randint(self.crop_width, int(self.width / 2 - self.center_mask - self.crop_width)),
+                 random.randint(int(self.width / 2 + self.center_mask), self.width - 2 * self.crop_width - 1)]
         crop_start = random.choice(crops)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start):
         frac = self.width // self.fraction
         heatmap = t.zeros(frac).long()
-        idx = int((crop_start + self.crop_width//2) / self.fraction)
+        idx = int((crop_start + self.crop_width//2) * (frac/self.width))
         heatmap[idx] = 1
         heatmap[idx + 1] = 1
         return heatmap
@@ -89,7 +92,7 @@ class CroppedImgPairDataset(ImgPairDataset):
         surround = self.smoothness * 2
         frac = self.width // self.fraction
         heatmap = t.zeros(frac + surround)
-        idx = int((crop_start + self.crop_width//2) / self.fraction) + self.smoothness
+        idx = int((crop_start + self.crop_width//2) * (frac/self.width)) + self.smoothness
         heatmap[idx] = 1
         idxs = np.array([-1, +1])
         for i in range(1, self.smoothness + 1):

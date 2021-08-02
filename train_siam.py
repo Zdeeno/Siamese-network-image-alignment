@@ -10,19 +10,24 @@ from tqdm import tqdm
 from utils import plot_samples, batch_augmentations
 
 
+def get_pad(crop):
+    return (crop - 8) // 16
+
+
 BATCH_SIZE = 16
 EPOCHS = 1000
 LR = 3e-5
 EVAL_RATE = 1
-CROP_SIZES = [24, 40, 56, 72, 88, 104]
+CROP_SIZES = [56]  # [56 + 16*i for i in range(5)]
 FRACTION = 8
-PAD = 3
+PAD = get_pad(CROP_SIZES[0])
 SMOOTHNESS = 3
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 batch_augmentations = batch_augmentations.to(device)
+print(CROP_SIZES)
 
-dataset = CroppedImgPairDataset(CROP_SIZES[2], FRACTION, SMOOTHNESS)
+dataset = CroppedImgPairDataset(CROP_SIZES[0], FRACTION, SMOOTHNESS)
 val, train = t.utils.data.random_split(dataset, [int(0.1 * len(dataset)), int(0.9 * len(dataset))])
 train_loader = DataLoader(train, BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val, 1, shuffle=False)
@@ -35,6 +40,16 @@ optimizer = AdamW(model.parameters(), lr=LR)
 loss = BCEWithLogitsLoss()
 
 
+# TODO: Swap two targets and set heatmap to zeros there!!!
+def swap_two(target, heatmap):
+    idxs = random.sample([i for i in range(target.size(0))], 2)
+    tmp = target[idxs[0]]
+    target[idxs[0]] = target[idxs[1]]
+    target[idxs[1]] = tmp
+    heatmap[idxs, :] = 0
+    return target, heatmap
+
+
 def train_loop(epoch):
     global PAD
     model.train()
@@ -43,7 +58,8 @@ def train_loop(epoch):
     for batch in tqdm(train_loader):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
         source = batch_augmentations(source)
-        target = batch_augmentations(target)
+        # target = batch_augmentations(target)
+        # target, heatmap = swap_two(target, heatmap)
         out = model(source, target, padding=PAD)
         optimizer.zero_grad()
         heatmap[heatmap > 0] = 1.0
@@ -55,8 +71,8 @@ def train_loop(epoch):
         optimizer.step()
 
         r_choice = random.choice(CROP_SIZES)
-        PAD = (r_choice - 8) // 16
-        dataset.set_crop_size(r_choice)
+        PAD = get_pad(r_choice)
+        dataset.set_crop_size(r_choice, smoothness=SMOOTHNESS)
 
     print("Training of epoch", epoch, "ended with loss", loss_sum / len(train_loader))
 
@@ -70,7 +86,7 @@ def eval_loop(epoch):
             if idx % 10 == 0:
                 source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
                 source = batch_augmentations(source)
-                target = batch_augmentations(target)
+                # target = batch_augmentations(target)
                 out = model(source, target, padding=PAD)
                 out = t.sigmoid(out.squeeze(0).cpu())
                 plot_samples(source.squeeze(0).cpu(),
@@ -81,8 +97,8 @@ def eval_loop(epoch):
                              dir="results_siam/" + str(epoch) + "/")
 
                 r_choice = random.choice(CROP_SIZES)
-                PAD = (r_choice - 8) // 16
-                dataset.set_crop_size(r_choice)
+                PAD = get_pad(r_choice)
+                dataset.set_crop_size(r_choice, smoothness=SMOOTHNESS)
 
                 if idx > 100:
                     break

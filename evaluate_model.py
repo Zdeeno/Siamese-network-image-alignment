@@ -9,15 +9,23 @@ from utils import get_shift, plot_samples, plot_displacement, affine
 import numpy as np
 from scipy import interpolate
 
-VISUALIZE = False
+device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
+# device = t.device("cpu")
+
+VISUALIZE = True
 WIDTH = 512
-CROP_SIZE = 152
+CROP_SIZE = 504
 PAD = (CROP_SIZE - 8) // 16
 FRACTION = 8
 OUTPUT_SIZE = WIDTH // FRACTION
-CROPS_MULTIPLIER = 32
+CROPS_MULTIPLIER = 1
 BATCHING = CROPS_MULTIPLIER    # this improves evaluation speed by a lot
-
+MASK = t.zeros(OUTPUT_SIZE)
+MASK[:PAD] = t.flip(t.arange(0, PAD), dims=[0])
+MASK[-PAD:] = t.arange(0, PAD)
+MASK = OUTPUT_SIZE - 1 - MASK
+MASK = (OUTPUT_SIZE - 1) / MASK.to(device)
+print(MASK)
 
 # transformer params
 D_MODEL = 576
@@ -29,9 +37,7 @@ EVAL_LIMIT = 1000
 TOLERANCE = 75
 
 MODEL_TYPE = "siam"
-MODEL = "cutout72_size16/model_32"
-device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
-# device = t.device("cpu")
+MODEL = "model_1"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
@@ -44,8 +50,8 @@ model = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_" + MOD
 transform = Resize(192)
 # transform = Resize(192 * 2)
 # transform = Resize((288, WIDTH))
-crops_num = int(((WIDTH - CROP_SIZE) // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int)
+crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION//2
 print(crops_num, np.array(crops_idx))
 
 
@@ -70,18 +76,17 @@ def eval_displacement():
                 batched_source = src.repeat(crops_num//BATCHING, 1, 1, 1)
                 # batched_source = src
                 histogram = model(batched_source, target_crops)
-                histogram = t.sigmoid(histogram)
-                # histogram[:, 0] = 0  # filter boundary values
-                # histogram[:, -1] = 0  # filter boundary values
-                std, mean = t.std_mean(histogram, dim=-1, keepdim=True)
-                histogram = (histogram - mean)/std
+                histogram = histogram * MASK
+                # histogram = t.sigmoid(histogram)
+                # std, mean = t.std_mean(histogram, dim=-1, keepdim=True)
+                # histogram = (histogram - mean)/std
                 return histogram
 
             # do it in both directions target -> source and source -> target
             histogram = get_histogram(source, target)
             shift_hist = get_shift(WIDTH, CROP_SIZE, histogram, crops_idx)
-            histogram = get_histogram(target, source)
-            shift_hist += t.flip(get_shift(WIDTH, CROP_SIZE, histogram, crops_idx), dims=(-1, ))
+            # histogram = get_histogram(target, source)
+            # shift_hist += t.flip(get_shift(WIDTH, CROP_SIZE, histogram, crops_idx), dims=(-1, ))
 
             f = interpolate.interp1d(np.linspace(0, 1024, OUTPUT_SIZE), shift_hist, kind="linear")
             interpolated = f(np.arange(1024))
@@ -111,19 +116,20 @@ def eval_displacement():
 
 
 def eval_heatmap():
-    dataset = CroppedImgPairDataset(CROP_SIZE, FRACTION, 0, transforms=transform)
+    dataset = ImgPairDataset(dataset="stromovka")
     train_loader = DataLoader(dataset, 1, shuffle=False)
 
     model.eval()
     with torch.no_grad():
         idx = 0
         for batch in tqdm(train_loader):
-            source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+            source, target, displac = batch[0].to(device), batch[1].to(device), batch[2].to(device)
 
             histogram = model(source, target)
             histogram = t.sigmoid(histogram)
-            histogram[:, 0] = 0  # filter boundary values
-            histogram[:, -1] = 0  # filter boundary values
+            heatmap = torch.zeros_like(histogram, device=device)
+            heatmap[displac] = 1
+            print(histogram)
 
             plot_samples(source.squeeze(0).cpu(),
                          target.squeeze(0).cpu(),
