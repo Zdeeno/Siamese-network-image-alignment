@@ -34,10 +34,10 @@ HEADS = 8
 DIM = 256
 
 EVAL_LIMIT = 1000
-TOLERANCE = 75
+TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_1"
+MODEL = "model_2"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
@@ -51,7 +51,7 @@ transform = Resize(192)
 # transform = Resize(192 * 2)
 # transform = Resize((288, WIDTH))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION//2
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION // 2
 print(crops_num, np.array(crops_idx))
 
 
@@ -112,7 +112,7 @@ def eval_displacement():
                 break
 
         print("Evaluated:", "\nAbsolute mean error:", abs_err/idx, "\nPredictions in tolerance:", valid*100/idx, "%")
-        np.savetxt("results_" + MODEL_TYPE + "/eval_" + MODEL + "/errors.csv", errors, delimiter=",")
+        np.savetxt("results_" + MODEL_TYPE + "/eval_" + MODEL + "/errors.csv", np.array(errors) * 2.0, delimiter=",")
 
 
 def eval_heatmap():

@@ -8,6 +8,8 @@ import itertools
 from glob import glob
 import kornia as K
 import numpy as np
+import torchvision
+import pandas as pd
 
 
 class ImgPairDataset(Dataset):
@@ -53,6 +55,7 @@ class CroppedImgPairDataset(ImgPairDataset):
         self.fraction = fraction
         self.smoothness = smoothness
         self.center_mask = 48
+        self.side_mask = 1.2
         self.flip = K.Hflip()
 
     def __getitem__(self, idx):
@@ -75,8 +78,8 @@ class CroppedImgPairDataset(ImgPairDataset):
 
     def crop_img(self, img):
         # crop - avoid center (rails) and edges
-        crops = [random.randint(self.crop_width, int(self.width / 2 - self.center_mask - self.crop_width)),
-                 random.randint(int(self.width / 2 + self.center_mask), self.width - 2 * self.crop_width - 1)]
+        crops = [random.randint(int(self.crop_width * self.side_mask), int(self.width / 2 - self.center_mask - self.crop_width)),
+                 random.randint(int(self.width / 2 + self.center_mask), int(self.width - (1 + self.side_mask) * self.crop_width - 1))]
         crop_start = random.choice(crops)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
@@ -114,8 +117,60 @@ class CroppedImgPairDataset(ImgPairDataset):
         return source.squeeze(0), target
 
 
+class VideoDataset(Dataset):
+
+    def __init__(self, folder):
+        videos = glob(os.path.join(folder, '*.mp4'))
+        self.videos = sorted(videos)
+        self.curr_video = torchvision.io.read_video(self.videos[-1])[0]
+        self.last_segment_len = self.curr_video.size(0)
+        self._get_segment(0)
+        self.segment_len = self.curr_video.size(0)
+        self.total_len = (len(self.videos) - 1) * self.segment_len + self.last_segment_len
+
+    def _get_segment(self, idx):
+        # idx is index of videofile
+        self.curr_video_idx = idx
+        self.curr_video = torchvision.io.read_video(self.videos[self.curr_video_idx])[0]
+
+    def __len__(self):
+        return self.total_len
+
+    def __getitem__(self, idx):
+        desired_seg = idx // self.segment_len
+        if desired_seg != self.curr_video_idx:
+            self._get_segment(desired_seg)
+        seg_idx = idx % self.segment_len
+        return self.curr_video[seg_idx]
+
+
+class GPSDataset:
+
+    def __init__(self, filename):
+        df = pd.read_csv(filename)
+        # remove first few data when not in motion (for easier alignment of gps and video data)
+        df = df.drop(df[(df["speed"] == 0) & (df.index < 500)].index)
+        self.positions = np.empty((len(df), 2), dtype=int)
+        self.positions[:, 0] = df["lat"]
+        self.positions[:, 1] = df["lon"]
+        self._curr_pos = 0
+
+    def get_next(self, dist, step):
+        new_pos = self._curr_pos + step
+        while np.linalg.norm(self.positions[self._curr_pos] - self.positions[new_pos]) < dist:
+            new_pos += step
+        self._curr_pos = new_pos
+        return new_pos, self.positions[new_pos]
+
+    def get_closest_id(self, position):
+        dists = np.linalg.norm(position - self.positions)
+        min_idx = np.argmin(dists)
+        return min_idx
+
+
 if __name__ == '__main__':
-    dataset = CroppedImgPairDataset(64, 16, 3)
-    print(len(dataset))
-    a, b, heatmap = dataset[1]
-    plot_samples(a, b, heatmap, prediction=heatmap)
+    # dataset = CroppedImgPairDataset(64, 16, 3)
+    # print(len(dataset))
+    # a, b, heatmap = dataset[1]
+    # plot_samples(a, b, heatmap, prediction=heatmap)
+    GPSDataset("/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/fall.csv")

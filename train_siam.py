@@ -3,8 +3,8 @@ import torch as t
 from parser_nordland import CroppedImgPairDataset
 from model import Siamese, get_custom_CNN, get_pretrained_VGG11, save_model, load_model
 from torch.utils.data import DataLoader
-from torch.optim import SGD, AdamW
-from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
+from torch.optim import SGD, Adam
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
 from utils import plot_samples, batch_augmentations
@@ -14,7 +14,7 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 EPOCHS = 1000
 LR = 3e-5
 EVAL_RATE = 1
@@ -35,19 +35,10 @@ val_loader = DataLoader(val, 1, shuffle=False)
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 model = Siamese(backbone, padding=PAD).to(device)
-optimizer = AdamW(model.parameters(), lr=LR)
+optimizer = Adam(model.parameters(), lr=LR)
 # loss = CrossEntropyLoss()
 loss = BCEWithLogitsLoss()
-
-
-# TODO: Swap two targets and set heatmap to zeros there!!!
-def swap_two(target, heatmap):
-    idxs = random.sample([i for i in range(target.size(0))], 2)
-    tmp = target[idxs[0]]
-    target[idxs[0]] = target[idxs[1]]
-    target[idxs[1]] = tmp
-    heatmap[idxs, :] = 0
-    return target, heatmap
+# loss = MSELoss()
 
 
 def train_loop(epoch):
@@ -88,7 +79,7 @@ def eval_loop(epoch):
                 source = batch_augmentations(source)
                 # target = batch_augmentations(target)
                 out = model(source, target, padding=PAD)
-                out = t.sigmoid(out.squeeze(0).cpu())
+                out = out.squeeze(0).cpu()
                 plot_samples(source.squeeze(0).cpu(),
                              target.squeeze(0).cpu(),
                              heatmap.squeeze(0).cpu(),
@@ -105,8 +96,8 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    LOAD_EPOCH = 0
-    # model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    LOAD_EPOCH = 9
+    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)

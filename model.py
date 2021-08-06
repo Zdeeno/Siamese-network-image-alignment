@@ -4,7 +4,7 @@ from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
 import math
 from einops import rearrange
-from torch import functional as F
+from torch.nn import functional as F
 
 
 class CNN(t.nn.Module):
@@ -15,18 +15,19 @@ class CNN(t.nn.Module):
                                         self._create_block(16, 64, 3, 1, 1, (2, 2)),
                                         self._create_block(64, 256, 3, 1, 1, (2, 2)),
                                         self._create_block(256, 512, 3, 1, 1, (2, 1)),
-                                        self._create_block(512, 32, 3, 1, 1, (3, 1)))
+                                        self._create_block(512, 128, 3, 1, 1, (3, 1)))    # 128 channels out feels better
 
     def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
         net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
                     t.nn.BatchNorm2d(out_channel),
-                    t.nn.GELU()]
+                    t.nn.ReLU()]
         if pooling[0] > 0 or pooling[1] > 0:
             net_list.append(t.nn.MaxPool2d(pooling, pooling))
         return t.nn.Sequential(*net_list)
 
     def forward(self, x):
-        return self.backbone(x)
+        x = self.backbone(x)
+        return x
 
 
 class VGG11EmbeddingNet_5c(nn.Module):

@@ -26,13 +26,12 @@ class GANAugemntation(t.nn.Module):
                 return x
 
 
-AUG_P = 0.2
+AUG_P = 0.25
 
 batch_augmentations = t.nn.Sequential(
-    # GANAugemntation(p=0.2),
     K.augmentation.RandomAffine(t.tensor(10.0),
                                 t.tensor([16 / 512, 0.25]),
-                                align_corners=False, p=0.3),
+                                align_corners=False, p=AUG_P),
     K.augmentation.RandomBoxBlur(p=AUG_P),
     K.augmentation.RandomChannelShuffle(p=AUG_P),
     K.augmentation.RandomPerspective(distortion_scale=0.1, p=AUG_P),
@@ -43,7 +42,8 @@ batch_augmentations = t.nn.Sequential(
     K.augmentation.RandomGaussianNoise(std=0.15, p=AUG_P),
     K.augmentation.RandomElasticTransform(p=AUG_P),
     # K.augmentation.RandomEqualize(p=0.2),     CPU only
-    K.augmentation.RandomGrayscale(p=AUG_P)
+    K.augmentation.RandomGrayscale(p=AUG_P),
+    K.augmentation.RandomErasing(p=AUG_P, scale=(0.1, 0.5))
 )
 
 
