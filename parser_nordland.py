@@ -148,24 +148,36 @@ class GPSDataset:
 
     def __init__(self, filename):
         df = pd.read_csv(filename)
-        # remove first few data when not in motion (for easier alignment of gps and video data)
+        # remove first few data when train not in motion (for easier alignment of gps and video data)
         df = df.drop(df[(df["speed"] == 0) & (df.index < 500)].index)
-        self.positions = np.empty((len(df), 2), dtype=int)
-        self.positions[:, 0] = df["lat"]
-        self.positions[:, 1] = df["lon"]
+        self._positions = np.empty((len(df), 2), dtype=int)
+        self._positions[:, 0] = df["lat"]
+        self._positions[:, 1] = df["lon"]
         self._curr_pos = 0
 
     def get_next(self, dist, step):
         new_pos = self._curr_pos + step
-        while np.linalg.norm(self.positions[self._curr_pos] - self.positions[new_pos]) < dist:
+        while np.linalg.norm(self._positions[self._curr_pos] - self._positions[new_pos]) < dist:
             new_pos += step
         self._curr_pos = new_pos
-        return new_pos, self.positions[new_pos]
+        return new_pos, self._positions[new_pos]
 
-    def get_closest_id(self, position):
-        dists = np.linalg.norm(position - self.positions)
+    def get_closest_id(self, position, hint, set_position=False):
+        SPREAD = 10  # in seconds
+        dists = np.linalg.norm(position - self._positions[hint-SPREAD:hint+SPREAD])
         min_idx = np.argmin(dists)
+        assert SPREAD//2 < min_idx < (SPREAD//2)*3, "Step are desynchronized, hint is not matching"
+        min_idx += (hint - SPREAD)
+        if set_position:
+            self._curr_pos = min_idx
         return min_idx
+
+    def set_position(self, position):
+        dists = np.linalg.norm(position - self._positions)
+        self._curr_pos = np.argmin(dists)
+
+    def get_position(self):
+        return self._positions[self._curr_pos]
 
 
 if __name__ == '__main__':
