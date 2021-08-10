@@ -127,21 +127,32 @@ class VideoDataset(Dataset):
         self._get_segment(0)
         self.segment_len = self.curr_video.size(0)
         self.total_len = (len(self.videos) - 1) * self.segment_len + self.last_segment_len
+        print("Loaded video dataset with", len(self), "images in", len(self.videos), "videos!")
 
     def _get_segment(self, idx):
         # idx is index of videofile
         self.curr_video_idx = idx
+        print("Processing video file named:", self.videos[self.curr_video_idx])
         self.curr_video = torchvision.io.read_video(self.videos[self.curr_video_idx])[0]
 
     def __len__(self):
         return self.total_len
 
     def __getitem__(self, idx):
+        if type(idx) == list:
+            ret = []
+            for i in idx:
+                ret.append(self.__obtain_index(i))
+            return t.stack(ret)
+        else:
+            return self.__obtain_index(idx)
+
+    def __obtain_index(self, idx):
         desired_seg = idx // self.segment_len
         if desired_seg != self.curr_video_idx:
             self._get_segment(desired_seg)
         seg_idx = idx % self.segment_len
-        return self.curr_video[seg_idx]
+        return self.curr_video[seg_idx]/255.0
 
 
 class GPSDataset:
@@ -164,9 +175,11 @@ class GPSDataset:
 
     def get_closest_id(self, position, hint, set_position=False):
         SPREAD = 10  # in seconds
-        dists = np.linalg.norm(position - self._positions[hint-SPREAD:hint+SPREAD])
+        if hint - SPREAD < 0:
+            SPREAD = hint
+        dists = np.linalg.norm(position - self._positions[hint-SPREAD:hint+SPREAD], axis=1)
         min_idx = np.argmin(dists)
-        assert SPREAD//2 < min_idx < (SPREAD//2)*3, "Step are desynchronized, hint is not matching"
+        assert not(min_idx == 0 or min_idx == SPREAD * 2 - 1), "Steps are desynchronized, hint is not matching " + str(dists) + " " + str(hint)
         min_idx += (hint - SPREAD)
         if set_position:
             self._curr_pos = min_idx

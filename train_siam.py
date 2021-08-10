@@ -1,7 +1,7 @@
 import random
 import torch as t
 from parser_nordland import CroppedImgPairDataset
-from model import Siamese, get_custom_CNN, get_pretrained_VGG11, save_model, load_model
+from model import Siamese, get_custom_CNN, get_pretrained_VGG11, get_super_backbone, save_model, load_model
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Adam
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
@@ -14,7 +14,7 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 EPOCHS = 1000
 LR = 3e-5
 EVAL_RATE = 1
@@ -41,6 +41,17 @@ loss = BCEWithLogitsLoss()
 # loss = MSELoss()
 
 
+def create_true_negatives(target, heatmap, num):
+    num = min(num, target.size(0))
+    idxs = random.sample([i for i in range(target.size(0))], num)
+    num_half = num//2
+    tmp = target[idxs[:num_half]]
+    target[idxs[:num_half]] = target[idxs[num_half:]]
+    target[idxs[num_half:]] = tmp
+    heatmap[idxs, :] = 0
+    return target, heatmap
+
+
 def train_loop(epoch):
     global PAD
     model.train()
@@ -50,7 +61,6 @@ def train_loop(epoch):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
         source = batch_augmentations(source)
         # target = batch_augmentations(target)
-        # target, heatmap = swap_two(target, heatmap)
         out = model(source, target, padding=PAD)
         optimizer.zero_grad()
         heatmap[heatmap > 0] = 1.0
@@ -96,8 +106,8 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    LOAD_EPOCH = 9
-    model, optimizer, load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    LOAD_EPOCH = 0
+    # model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)

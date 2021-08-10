@@ -15,7 +15,7 @@ class CNN(t.nn.Module):
                                         self._create_block(16, 64, 3, 1, 1, (2, 2)),
                                         self._create_block(64, 256, 3, 1, 1, (2, 2)),
                                         self._create_block(256, 512, 3, 1, 1, (2, 1)),
-                                        self._create_block(512, 128, 3, 1, 1, (3, 1)))    # 128 channels out feels better
+                                        self._create_block(512, 128, 3, 1, 1, (3, 1)))   # 128 channels out feels better
 
     def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
         net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
@@ -28,6 +28,38 @@ class CNN(t.nn.Module):
     def forward(self, x):
         x = self.backbone(x)
         return x
+
+
+class SuperBackbone(t.nn.Module):
+    # TODO: Implement this backbone: CNN -> ViT -> Conv -> BCELoss
+    def __init__(self):
+        super(SuperBackbone, self).__init__()
+        self.backbone = t.nn.Sequential(self._create_block(3, 16, 3, 1, 1, (2, 2)),
+                                        self._create_block(16, 64, 3, 1, 1, (2, 2)),
+                                        self._create_block(64, 256, 3, 1, 1, (2, 2)),
+                                        self._create_block(256, 512, 3, 1, 1, (2, 1)),
+                                        self._create_block(512, 32, 3, 1, 1, (3, 1)))
+        tr_layer = t.nn.TransformerEncoderLayer(d_model=192, nhead=4, dim_feedforward=512)
+        self.pos_encoding = PositionalEncoding(192, max_len=64)
+        self.encoder = t.nn.TransformerEncoder(tr_layer, 4)
+
+    def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
+        net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
+                    t.nn.BatchNorm2d(out_channel),
+                    t.nn.ReLU()]
+        if pooling[0] > 0 or pooling[1] > 0:
+            net_list.append(t.nn.MaxPool2d(pooling, pooling))
+        return t.nn.Sequential(*net_list)
+
+    def forward(self, x):
+        x = self.backbone(x)
+        B, CH, H, W = x.shape
+        x = x.view(B, CH * H, W)
+        x = x.permute(2, 0, 1)
+        x = self.encoder(x)
+        x = x.permute(1, 2, 0).view(B, CH, H, W)
+        return x
+
 
 
 class VGG11EmbeddingNet_5c(nn.Module):
@@ -88,6 +120,10 @@ def get_pretrained_VGG11():
 
 def get_custom_CNN():
     return CNN()
+
+
+def get_super_backbone():
+    return SuperBackbone()
 
 
 class Siamese(t.nn.Module):
@@ -154,7 +190,7 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x, rnd=True):
         if self.training and rnd:
-            shift = random.randint(0, 16)
+            shift = random.randint(0, 64 - 8)
         else:
             shift = 0
         x = x + self.pe[shift:x.size(0)+shift, :]

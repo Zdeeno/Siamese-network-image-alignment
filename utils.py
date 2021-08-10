@@ -111,20 +111,21 @@ def plot_displacement(source, target, prediction, displacement=None, name=0, dir
     plt.close()
 
 
-def plot_similarity(img1, img2, time_histogram):
+def plot_similarity(img1, img2, time_histogram, name=None):
     f, axarr = plt.subplots(3)
     axarr[0].imshow(img1.permute(1, 2, 0), aspect="auto")
     axarr[1].imshow(img2.permute(1, 2, 0), aspect="auto")
-    predicted_max = time_histogram
-    max_y = t.max(time_histogram)[0]
-    axarr[2].axvline(x=predicted_max, ymin=0, ymax=max_y, c="r")
-    axarr[2].plot(time_histogram)
-    axarr[2].set_xlim((0, img1.size(-1) - 1))
+    predicted_max = t.argmax(time_histogram)
+    max_y = t.max(time_histogram)
+    # axarr[2].axvline(x=predicted_max, ymin=0, ymax=max_y, c="r")
+    axarr[2].plot(np.arange(-time_histogram.size(0)//2, time_histogram.size(0)//2), time_histogram)
+    # axarr[2].set_xlim((0, img1.size(-1) - 1))
     # Path(dir).mkdir(parents=True, exist_ok=True)
     # plt.savefig(dir + str(name) + ".png")
-    plt.show()
-    plt.waitforbuttonpress()
-
+    if name is not None:
+        plt.savefig("results_aligning/" + name + ".png")
+    else:
+        plt.show()
 
 
 def get_shift(img_width, crop_width, histogram, crops_idx):

@@ -1,6 +1,6 @@
 import torch
 import torch as t
-from model import Siamese, load_model, get_custom_CNN, Transformer
+from model import Siamese, load_model, get_custom_CNN, Transformer, get_super_backbone
 from torch.utils.data import DataLoader
 from parser_grief import ImgPairDataset, CroppedImgPairDataset
 from torchvision.transforms import Resize
@@ -12,9 +12,9 @@ from scipy import interpolate
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
-VISUALIZE = True
-WIDTH = 512
-CROP_SIZE = 504
+VISUALIZE = False
+WIDTH = 512  # 768
+CROP_SIZE = WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16
 FRACTION = 8
 OUTPUT_SIZE = WIDTH // FRACTION
@@ -27,31 +27,27 @@ MASK = OUTPUT_SIZE - 1 - MASK
 MASK = (OUTPUT_SIZE - 1) / MASK.to(device)
 print(MASK)
 
-# transformer params
-D_MODEL = 576
-LAYERS = 4
-HEADS = 8
-DIM = 256
-
 EVAL_LIMIT = 1000
 TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_2"
+MODEL = "model_5"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
+# backbone = get_super_backbone()
 if MODEL_TYPE == "siam":
     model = Siamese(backbone, padding=PAD).to(device)
-elif MODEL_TYPE == "attn":
-    model = Transformer(backbone, D_MODEL, LAYERS, HEADS, DIM).to(device).float()
 model = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
 
-transform = Resize(192)
+# transform = Resize(192)
 # transform = Resize(192 * 2)
-# transform = Resize((288, WIDTH))
+transform = Resize((288, 512))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION // 2
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) #  + FRACTION // 2
+
+# crops_idx = np.array([WIDTH // 2 - CROP_SIZE // 2])
+# crops_num = 1
 print(crops_num, np.array(crops_idx))
 
 
@@ -74,6 +70,7 @@ def eval_displacement():
                     target_crops.append(tgt[..., crop_idx:crop_idx+CROP_SIZE])
                 target_crops = t.cat(target_crops, dim=0)
                 batched_source = src.repeat(crops_num//BATCHING, 1, 1, 1)
+                # batched_source = t.zeros_like(batched_source)
                 # batched_source = src
                 histogram = model(batched_source, target_crops)
                 histogram = histogram * MASK
@@ -115,32 +112,5 @@ def eval_displacement():
         np.savetxt("results_" + MODEL_TYPE + "/eval_" + MODEL + "/errors.csv", np.array(errors) * 2.0, delimiter=",")
 
 
-def eval_heatmap():
-    dataset = ImgPairDataset(dataset="stromovka")
-    train_loader = DataLoader(dataset, 1, shuffle=False)
-
-    model.eval()
-    with torch.no_grad():
-        idx = 0
-        for batch in tqdm(train_loader):
-            source, target, displac = batch[0].to(device), batch[1].to(device), batch[2].to(device)
-
-            histogram = model(source, target)
-            histogram = t.sigmoid(histogram)
-            heatmap = torch.zeros_like(histogram, device=device)
-            heatmap[displac] = 1
-            print(histogram)
-
-            plot_samples(source.squeeze(0).cpu(),
-                         target.squeeze(0).cpu(),
-                         heatmap.squeeze(0).cpu(),
-                         prediction=histogram.squeeze(0).cpu(),
-                         name=str(idx),
-                         dir="results_" + MODEL_TYPE + "/eval_" + MODEL + "/")
-
-            idx += 1
-
-
 if __name__ == '__main__':
     eval_displacement()
-    # eval_heatmap()
