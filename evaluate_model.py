@@ -1,6 +1,6 @@
 import torch
 import torch as t
-from model import Siamese, load_model, get_custom_CNN, Transformer, get_super_backbone
+from model import Siamese, load_model, get_custom_CNN, get_super_backbone, TeacherStudent
 from torch.utils.data import DataLoader
 from parser_grief import ImgPairDataset, CroppedImgPairDataset
 from torchvision.transforms import Resize
@@ -12,7 +12,7 @@ from scipy import interpolate
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
-VISUALIZE = False
+VISUALIZE = True
 WIDTH = 512  # 768
 CROP_SIZE = WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16
@@ -24,14 +24,14 @@ MASK = t.zeros(OUTPUT_SIZE)
 MASK[:PAD] = t.flip(t.arange(0, PAD), dims=[0])
 MASK[-PAD:] = t.arange(0, PAD)
 MASK = OUTPUT_SIZE - 1 - MASK
-MASK = (OUTPUT_SIZE - 1) / MASK.to(device)
+MASK = ((OUTPUT_SIZE - 1) / MASK.to(device)) ** 2
 print(MASK)
 
 EVAL_LIMIT = 1000
-TOLERANCE = 50
+TOLERANCE = 1
 
 MODEL_TYPE = "siam"
-MODEL = "model_5"
+MODEL = "model_20_top"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
@@ -40,9 +40,9 @@ if MODEL_TYPE == "siam":
     model = Siamese(backbone, padding=PAD).to(device)
 model = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
 
-# transform = Resize(192)
+transform = Resize(192)
 # transform = Resize(192 * 2)
-transform = Resize((288, 512))
+# transform = Resize((288, 512))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
 crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) #  + FRACTION // 2
 

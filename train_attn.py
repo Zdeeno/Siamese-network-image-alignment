@@ -1,9 +1,10 @@
 import random
 import torch as t
 from parser_nordland import CroppedImgPairDataset
-from model import Siamese, get_custom_CNN, get_pretrained_VGG11, get_super_backbone, save_model, load_model
+from model import Siamese, get_custom_CNN, get_pretrained_VGG11, get_super_backbone, save_model, load_model,\
+    TeacherStudent
 from torch.utils.data import DataLoader
-from torch.optim import SGD, Adam
+from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
@@ -14,6 +15,7 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
+TAU = 0.9995
 BATCH_SIZE = 16
 EPOCHS = 1000
 LR = 3e-5
@@ -33,8 +35,8 @@ train_loader = DataLoader(train, BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val, 1, shuffle=False)
 
 backbone = get_super_backbone()
-model = Siamese(backbone, padding=PAD).to(device)
-optimizer = Adam(model.parameters(), lr=LR)
+model = TeacherStudent(backbone, padding=PAD).to(device)
+optimizer = AdamW(model.backbone_student.parameters(), lr=LR)
 # loss = CrossEntropyLoss()
 loss = BCEWithLogitsLoss()
 # loss = MSELoss()
@@ -60,7 +62,7 @@ def train_loop(epoch):
         source, target, heatmap = batch[0].to(device), batch[1].to(device), batch[2].to(device)
         source = batch_augmentations(source)
         # target = batch_augmentations(target)
-        target, heatmap = create_true_negatives(target, heatmap, (BATCH_SIZE//4) * 3)
+        # target, heatmap = create_true_negatives(target, heatmap, 14)
         out = model(source, target, padding=PAD)
         optimizer.zero_grad()
         heatmap[heatmap > 0] = 1.0
@@ -74,6 +76,7 @@ def train_loop(epoch):
         r_choice = random.choice(CROP_SIZES)
         PAD = get_pad(r_choice)
         dataset.set_crop_size(r_choice, smoothness=SMOOTHNESS)
+        model.update_teacher(TAU)
 
     print("Training of epoch", epoch, "ended with loss", loss_sum / len(train_loader))
 

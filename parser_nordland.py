@@ -78,9 +78,10 @@ class CroppedImgPairDataset(ImgPairDataset):
 
     def crop_img(self, img):
         # crop - avoid center (rails) and edges
-        crops = [random.randint(int(self.crop_width * self.side_mask), int(self.width / 2 - self.center_mask - self.crop_width)),
-                 random.randint(int(self.width / 2 + self.center_mask), int(self.width - (1 + self.side_mask) * self.crop_width - 1))]
-        crop_start = random.choice(crops)
+        # crops = [random.randint(int(self.crop_width * self.side_mask), int(self.width / 2 - self.center_mask - self.crop_width)),
+        #          random.randint(int(self.width / 2 + self.center_mask), int(self.width - (1 + self.side_mask) * self.crop_width - 1))]
+        # crop_start = random.choice(crops)
+        crop_start = random.randint(0, self.width - self.crop_width - 1)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start):

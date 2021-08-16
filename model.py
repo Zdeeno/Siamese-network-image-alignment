@@ -5,6 +5,7 @@ import torch.nn as nn
 import math
 from einops import rearrange
 from torch.nn import functional as F
+from copy import deepcopy
 
 
 class CNN(t.nn.Module):
@@ -52,13 +53,14 @@ class SuperBackbone(t.nn.Module):
         return t.nn.Sequential(*net_list)
 
     def forward(self, x):
-        x = self.backbone(x)
-        B, CH, H, W = x.shape
-        x = x.view(B, CH * H, W)
+        cnn_out = self.backbone(x)
+        B, CH, H, W = cnn_out.shape
+        x = cnn_out.view(B, CH * H, W)
         x = x.permute(2, 0, 1)
+        x = self.pos_encoding(x, rnd=True)
         x = self.encoder(x)
         x = x.permute(1, 2, 0).view(B, CH, H, W)
-        return x
+        return x + cnn_out
 
 
 
@@ -171,7 +173,43 @@ class Siamese(t.nn.Module):
         return match_map
 
 
-# TRANSFORMER MODEL ------------------------------------------
+class TeacherStudent(nn.Module):
+
+    def __init__(self, backbone, padding=3):
+        super(TeacherStudent, self).__init__()
+        self.backbone_teacher = backbone
+        self.backbone_student = deepcopy(backbone)
+        self.out_batchnorm = t.nn.BatchNorm2d(1)
+        self.padding = padding
+
+    def forward(self, source, target, padding=None):
+        if self.training:
+            source = self.backbone_teacher(source)
+            target = self.backbone_student(target)
+        else:
+            source = self.backbone_teacher(source)
+            target = self.backbone_teacher(target)
+        score_map = self.match_corr(target, source, padding=padding)
+        score_map = self.out_batchnorm(score_map)
+        return score_map.squeeze(1).squeeze(1)
+
+    def match_corr(self, embed_ref, embed_srch, padding=None):
+        # Copied from Siamese model
+        if padding is None:
+            padding = self.padding
+        b, c, h, w = embed_srch.shape
+        _, _, h_ref, w_ref = embed_ref.shape
+        match_map = conv2d(embed_srch.view(1, b * c, h, w),
+                           embed_ref, groups=b, padding=(0, padding))
+        match_map = match_map.permute(1, 0, 2, 3)
+
+        return match_map
+
+    def update_teacher(self, tau):
+        with t.no_grad():
+            m = tau  # momentum parameter: m * teacher + (1-m) * student
+            for param_q, param_k in zip(self.backbone_student.parameters(), self.backbone_teacher.parameters()):
+                param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
 
 
 class PositionalEncoding(nn.Module):
@@ -189,35 +227,13 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x, rnd=True):
-        if self.training and rnd:
-            shift = random.randint(0, 64 - 8)
+        width = x.size(0)
+        if self.training and rnd and width < 32:
+            shift = random.randint(0, 64 - width)
         else:
             shift = 0
         x = x + self.pe[shift:x.size(0)+shift, :]
         return self.dropout(x)
-
-
-class Transformer(t.nn.Module):
-    def __init__(self, backbone, d_model, num_layers, n_head, dim, dropout=0.1):
-        super(Transformer, self).__init__()
-        self.backbone = backbone
-        self.pe = PositionalEncoding(d_model)
-        self.transformer = t.nn.Transformer(d_model, n_head, num_layers, num_layers, dim, dropout, "gelu")
-        self.out = t.nn.Linear(d_model, 1)
-
-    def forward(self, source, target):
-        source = self.backbone(source)
-        target = self.backbone(target)
-        # (B, CH, H, W) -> (W, B, CHxH)
-        source = source.transpose(1, 3).transpose(0, 1).flatten(2, 3)
-        target = target.transpose(1, 3).transpose(0, 1).flatten(2, 3)
-        target = self.pe(target, rnd=False)
-        source = self.pe(source, rnd=True)
-        dec_out = self.transformer(target, source)
-        dec_out = self.out(dec_out).squeeze(-1)
-        out = dec_out.flatten(-1).transpose(0, 1)
-        print(source.size(), target.size(), out.size())
-        return out  # (B, W)
 
 
 def save_model(model, name, epoch, optimizer=None):
