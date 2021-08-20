@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ from pathlib import Path
 import kornia as K
 from styleaug import StyleAugmentor
 import random
+from torchvision.utils import save_image
 
 
 class GANAugemntation(t.nn.Module):
@@ -30,11 +32,11 @@ AUG_P = 0.25
 
 batch_augmentations = t.nn.Sequential(
     K.augmentation.RandomAffine(t.tensor(10.0),
-                                t.tensor([16 / 512, 0.25]),
+                                t.tensor([8 / 512, 0.25]),
                                 align_corners=False, p=AUG_P),
     K.augmentation.RandomBoxBlur(p=AUG_P),
     K.augmentation.RandomChannelShuffle(p=AUG_P),
-    K.augmentation.RandomPerspective(distortion_scale=0.1, p=AUG_P),
+    K.augmentation.RandomPerspective(distortion_scale=0.075, p=AUG_P),
     # K.augmentation.RandomPosterize(p=0.2),    CPU only
     K.augmentation.RandomSharpness(p=AUG_P),
     K.augmentation.RandomSolarize(p=AUG_P),
@@ -126,6 +128,17 @@ def plot_similarity(img1, img2, time_histogram, name=None):
         plt.savefig("results_aligning/" + name + ".png")
     else:
         plt.show()
+    plt.close()
+
+
+def save_imgs(img1, img2, name, path="/home/zdeeno/Documents/Datasets/nordland_rectified", max_val=None):
+    path1 = os.path.join(path, "0", str(name) + ".png")
+    path2 = os.path.join(path, "1", str(name) + ".png")
+    save_image(img1, path1)
+    save_image(img2, path2)
+    if max_val is not None:
+        f = open(os.path.join(path, "quality.txt"), 'a')
+        f.write(str(name) + " " + str(max_val) + "\n")
 
 
 def get_shift(img_width, crop_width, histogram, crops_idx):

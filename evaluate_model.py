@@ -9,10 +9,15 @@ from utils import get_shift, plot_samples, plot_displacement, affine
 import numpy as np
 from scipy import interpolate
 
+"""
+Right now the best performance achieves model_20_top with 88 crop size, but the best is to train new model and set
+crop size to 504
+"""
+
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
-VISUALIZE = True
+VISUALIZE = False
 WIDTH = 512  # 768
 CROP_SIZE = WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16
@@ -24,14 +29,14 @@ MASK = t.zeros(OUTPUT_SIZE)
 MASK[:PAD] = t.flip(t.arange(0, PAD), dims=[0])
 MASK[-PAD:] = t.arange(0, PAD)
 MASK = OUTPUT_SIZE - 1 - MASK
-MASK = ((OUTPUT_SIZE - 1) / MASK.to(device)) ** 2
+MASK = (OUTPUT_SIZE - 1) / MASK.to(device)
 print(MASK)
 
 EVAL_LIMIT = 1000
-TOLERANCE = 1
+TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_20_top"
+MODEL = "model_5"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
@@ -44,7 +49,7 @@ transform = Resize(192)
 # transform = Resize(192 * 2)
 # transform = Resize((288, 512))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) #  + FRACTION // 2
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION // 2
 
 # crops_idx = np.array([WIDTH // 2 - CROP_SIZE // 2])
 # crops_num = 1

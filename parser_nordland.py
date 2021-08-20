@@ -78,10 +78,10 @@ class CroppedImgPairDataset(ImgPairDataset):
 
     def crop_img(self, img):
         # crop - avoid center (rails) and edges
-        # crops = [random.randint(int(self.crop_width * self.side_mask), int(self.width / 2 - self.center_mask - self.crop_width)),
-        #          random.randint(int(self.width / 2 + self.center_mask), int(self.width - (1 + self.side_mask) * self.crop_width - 1))]
-        # crop_start = random.choice(crops)
-        crop_start = random.randint(0, self.width - self.crop_width - 1)
+        crops = [random.randint(int(self.crop_width * self.side_mask), int(self.width / 2 - self.center_mask - self.crop_width)),
+                 random.randint(int(self.width / 2 + self.center_mask), int(self.width - (1 + self.side_mask) * self.crop_width - 1))]
+        crop_start = random.choice(crops)
+        # crop_start = random.randint(0, self.width - self.crop_width - 1)
         return img[:, :, crop_start:crop_start + self.crop_width], crop_start
 
     def get_heatmap(self, crop_start):
@@ -156,42 +156,32 @@ class VideoDataset(Dataset):
         return self.curr_video[seg_idx]/255.0
 
 
-class GPSDataset:
+class FrameNordland(Dataset):
+    def __init__(self, folder):
+        images = glob(os.path.join(folder, '*.jpg'))
+        self.images = sorted(images)
+        self.img_idxs = np.array(sorted([int(name[-10:-4]) for name in images]))
+        print("Loaded images dataset with", len(self), "images!")
 
-    def __init__(self, filename):
-        df = pd.read_csv(filename)
-        # remove first few data when train not in motion (for easier alignment of gps and video data)
-        df = df.drop(df[(df["speed"] == 0) & (df.index < 500)].index)
-        self._positions = np.empty((len(df), 2), dtype=int)
-        self._positions[:, 0] = df["lat"]
-        self._positions[:, 1] = df["lon"]
-        self._curr_pos = 0
+    def __len__(self):
+        return len(self.images)
 
-    def get_next(self, dist, step):
-        new_pos = self._curr_pos + step
-        while np.linalg.norm(self._positions[self._curr_pos] - self._positions[new_pos]) < dist:
-            new_pos += step
-        self._curr_pos = new_pos
-        return new_pos, self._positions[new_pos]
+    def __getitem__(self, idx):
+        if type(idx) == list:
+            ret = []
+            for i in idx:
+                ret.append(self.__obtain_index(i)[0])
+            return t.stack(ret)
+        else:
+            return self.__obtain_index(idx)
 
-    def get_closest_id(self, position, hint, set_position=False):
-        SPREAD = 10  # in seconds
-        if hint - SPREAD < 0:
-            SPREAD = hint
-        dists = np.linalg.norm(position - self._positions[hint-SPREAD:hint+SPREAD], axis=1)
-        min_idx = np.argmin(dists)
-        assert not(min_idx == 0 or min_idx == SPREAD * 2 - 1), "Steps are desynchronized, hint is not matching " + str(dists) + " " + str(hint)
-        min_idx += (hint - SPREAD)
-        if set_position:
-            self._curr_pos = min_idx
-        return min_idx
+    def __obtain_index(self, idx):
+        img = torchvision.io.read_image(self.images[idx])
+        return img/255.0, int(self.images[idx][-10:-4])
 
-    def set_position(self, position):
-        dists = np.linalg.norm(position - self._positions)
-        self._curr_pos = np.argmin(dists)
+    def get_nearest_idx(self, idx):
+        return np.argmin(abs(self.img_idxs - idx))
 
-    def get_position(self):
-        return self._positions[self._curr_pos]
 
 
 if __name__ == '__main__':
@@ -199,4 +189,4 @@ if __name__ == '__main__':
     # print(len(dataset))
     # a, b, heatmap = dataset[1]
     # plot_samples(a, b, heatmap, prediction=heatmap)
-    GPSDataset("/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/fall.csv")
+    pass
