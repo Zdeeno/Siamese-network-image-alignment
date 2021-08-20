@@ -29,12 +29,12 @@ print(MASK)
 
 # program params
 VISUALIZE = False
-START_IDX = 0  # 401 for restarting string
+START_IDX = 401  # for restarting session
 STEP = 1  # frames in one step
 DISTANCE = 25  # GPS distance between positions
 SEARCH_SIZE = 64
 OUTPUT_THRESHOLD = 135
-USE_DRIFT = True
+SHIFT_THRESHOLD = 60
 
 # dataset params
 """
@@ -64,10 +64,7 @@ def get_batches(img1_idx, shift):
     batch1 = img1.unsqueeze(0)
     batch1 = preprocess_for_model(batch1)
     img2_idx = video2.get_nearest_idx(name_id)
-    if USE_DRIFT:
-        indices_video2 = [i for i in range(img2_idx - SEARCH_SIZE + shift, img2_idx + SEARCH_SIZE + shift)]
-    else:
-        indices_video2 = [i for i in range(img2_idx - SEARCH_SIZE, img2_idx + SEARCH_SIZE)]
+    indices_video2 = [i for i in range(img2_idx - SEARCH_SIZE + shift, img2_idx + SEARCH_SIZE + shift)]
     batch2 = video2[indices_video2]
     batch2 = preprocess_for_model(batch2)
     return batch1, batch2
@@ -108,6 +105,13 @@ if __name__ == '__main__':
         # get best matching images according to current drift
         batch1, batch2 = get_batches(img1_idx, shift)
         final_img1, final_img2, t_hist = time_histogram(batch1, batch2)
+        if abs(shift) > SHIFT_THRESHOLD and t.max(t_hist) < OUTPUT_THRESHOLD:
+            batch1, batch2 = get_batches(img1_idx, 0)
+            suggest_img1, suggest_img2, suggest_hist = time_histogram(batch1, batch2)
+            if t.max(suggest_hist) > t.max(t_hist):
+                print("Resetting the shift!")
+                final_img1, final_img2, t_hist, shift = suggest_img1, suggest_img2, suggest_hist, 0
+
         shift_increment = t.argmax(t_hist) - SEARCH_SIZE
         shift += shift_increment//3
 
