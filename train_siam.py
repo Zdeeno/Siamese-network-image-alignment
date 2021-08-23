@@ -1,6 +1,6 @@
 import random
 import torch as t
-from parser_nordland import CroppedImgPairDataset
+from parser_nordland import RectifiedNordland
 from model import Siamese, get_custom_CNN, get_pretrained_VGG11, get_super_backbone, save_model, load_model
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Adam
@@ -16,7 +16,7 @@ def get_pad(crop):
 
 BATCH_SIZE = 8
 EPOCHS = 10
-LR = 1e-5  # 3e-5
+LR = 3e-5
 EVAL_RATE = 1
 CROP_SIZES = [56]  # [56 + 16*i for i in range(5)]
 FRACTION = 8
@@ -27,8 +27,8 @@ device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 batch_augmentations = batch_augmentations.to(device)
 print(CROP_SIZES)
 
-dataset = CroppedImgPairDataset(CROP_SIZES[0], FRACTION, SMOOTHNESS)
-val, train = t.utils.data.random_split(dataset, [int(0.1 * len(dataset)), int(0.9 * len(dataset))])
+dataset = RectifiedNordland(CROP_SIZES[0], FRACTION, SMOOTHNESS)
+val, train = t.utils.data.random_split(dataset, [int(0.1 * len(dataset)), int(0.9 * len(dataset)) + 1])
 train_loader = DataLoader(train, BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val, 1, shuffle=False)
 
@@ -106,7 +106,7 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    LOAD_EPOCH = 2
+    LOAD_EPOCH = 5
     model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):

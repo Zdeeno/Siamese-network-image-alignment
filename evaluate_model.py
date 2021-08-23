@@ -17,7 +17,7 @@ crop size to 504
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
-VISUALIZE = False
+VISUALIZE = True
 WIDTH = 512  # 768
 CROP_SIZE = WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16

@@ -29,7 +29,7 @@ print(MASK)
 
 # program params
 VISUALIZE = False
-START_IDX = 401  # for restarting session
+START_IDX = 0  # for restarting session
 STEP = 1  # frames in one step
 DISTANCE = 25  # GPS distance between positions
 SEARCH_SIZE = 64
@@ -48,8 +48,8 @@ FPS_per_GPS = 25
 START = (2*60 + 55) * FPS_per_GPS
 VIDEO1 = "/home/zdeeno/Documents/Datasets/nordland/videos/spring"
 GPS1 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/spring.csv"
-VIDEO2 = "/home/zdeeno/Documents/Datasets/nordland/videos/winter"
-GPS2 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/winter.csv"
+VIDEO2 = "/home/zdeeno/Documents/Datasets/nordland/videos/fall"
+GPS2 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/fall.csv"
 resize = Resize(288)
 
 
@@ -84,6 +84,8 @@ def time_histogram(batch1, batch2):
 
 
 if __name__ == '__main__':
+    import time
+    time.sleep(int(3600 * 2.75))
 
     video1 = FrameNordland(VIDEO1)
     video2 = FrameNordland(VIDEO2)
