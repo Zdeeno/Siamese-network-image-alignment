@@ -14,8 +14,8 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
-BATCH_SIZE = 8
-EPOCHS = 10
+BATCH_SIZE = 16
+EPOCHS = 100
 LR = 3e-5
 EVAL_RATE = 1
 CROP_SIZES = [56]  # [56 + 16*i for i in range(5)]
@@ -106,8 +106,8 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    LOAD_EPOCH = 5
-    model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    LOAD_EPOCH = 0
+    # model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)

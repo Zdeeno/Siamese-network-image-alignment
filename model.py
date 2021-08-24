@@ -1,4 +1,5 @@
 import random
+import torch
 import torch as t
 from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
@@ -6,25 +7,27 @@ import math
 from einops import rearrange
 from torch.nn import functional as F
 from copy import deepcopy
+from utils import fft_compare
+
+
+def create_block(in_channel, out_channel, kernel, stride, padding, pooling):
+    net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
+                t.nn.BatchNorm2d(out_channel),
+                t.nn.ReLU()]
+    if pooling[0] > 0 or pooling[1] > 0:
+        net_list.append(t.nn.MaxPool2d(pooling, pooling))
+    return t.nn.Sequential(*net_list)
 
 
 class CNN(t.nn.Module):
 
     def __init__(self):
         super(CNN, self).__init__()
-        self.backbone = t.nn.Sequential(self._create_block(3, 16, 3, 1, 1, (2, 2)),
-                                        self._create_block(16, 64, 3, 1, 1, (2, 2)),
-                                        self._create_block(64, 256, 3, 1, 1, (2, 2)),
-                                        self._create_block(256, 512, 3, 1, 1, (2, 1)),
-                                        self._create_block(512, 128, 3, 1, 1, (3, 1)))   # 128 channels out feels better
-
-    def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
-        net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
-                    t.nn.BatchNorm2d(out_channel),
-                    t.nn.ReLU()]
-        if pooling[0] > 0 or pooling[1] > 0:
-            net_list.append(t.nn.MaxPool2d(pooling, pooling))
-        return t.nn.Sequential(*net_list)
+        self.backbone = t.nn.Sequential(create_block(3, 16, 3, 1, 1, (2, 2)),
+                                        create_block(16, 64, 3, 1, 1, (2, 2)),
+                                        create_block(64, 256, 3, 1, 1, (2, 2)),
+                                        create_block(256, 512, 3, 1, 1, (2, 1)),
+                                        create_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
 
     def forward(self, x):
         x = self.backbone(x)
@@ -136,12 +139,16 @@ class Siamese(t.nn.Module):
         self.out_batchnorm = t.nn.BatchNorm2d(1)
         self.padding = padding
 
-    def forward(self, source, target, padding=None):
-        source = self.backbone(source)
+    def forward(self, source, target, padding=None, fourrier=False):
+        with t.no_grad():
+            source = self.backbone(source)
         target = self.backbone(target)
-        score_map = self.match_corr(target, source, padding=padding)
-        score_map = self.out_batchnorm(score_map)
-        return score_map.squeeze(1).squeeze(1)
+        if fourrier:
+            score_map = fft_compare(source.squeeze(0), target.squeeze(0))
+        else:
+            score_map = self.match_corr(target, source, padding=padding)
+            score_map = self.out_batchnorm(score_map).squeeze(1).squeeze(1)
+        return score_map
 
     def match_corr(self, embed_ref, embed_srch, padding=None):
         """ Matches the two embeddings using the correlation layer. As per usual

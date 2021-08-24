@@ -245,6 +245,7 @@ class RectifiedNordland(RectifiedImgPairDataset):
         # crop the logo - this for some reason makes the network diverge on evaluation set
         # source = source[:, 30:, :]
         # target = target[:, 30:, :]
+        source[:, :32, -64:] = 0.0
         if random.random() > 0.8:
             target = source.clone()
         if random.random() > 0.5:

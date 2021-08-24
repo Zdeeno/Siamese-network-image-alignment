@@ -18,11 +18,11 @@ device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 
 VISUALIZE = True
-WIDTH = 512  # 768
-CROP_SIZE = WIDTH - 8
+WIDTH = 512
+CROP_SIZE = WIDTH # WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16
 FRACTION = 8
-OUTPUT_SIZE = WIDTH // FRACTION
+OUTPUT_SIZE = 64  #  WIDTH // FRACTION
 CROPS_MULTIPLIER = 1
 BATCHING = CROPS_MULTIPLIER    # this improves evaluation speed by a lot
 MASK = t.zeros(OUTPUT_SIZE)
@@ -36,7 +36,7 @@ EVAL_LIMIT = 1000
 TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_5"
+MODEL = "model_7"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
@@ -49,7 +49,7 @@ transform = Resize(192)
 # transform = Resize(192 * 2)
 # transform = Resize((288, 512))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION // 2
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int)#  + FRACTION // 2
 
 # crops_idx = np.array([WIDTH // 2 - CROP_SIZE // 2])
 # crops_num = 1
@@ -77,8 +77,8 @@ def eval_displacement():
                 batched_source = src.repeat(crops_num//BATCHING, 1, 1, 1)
                 # batched_source = t.zeros_like(batched_source)
                 # batched_source = src
-                histogram = model(batched_source, target_crops)
-                histogram = histogram * MASK
+                histogram = model(batched_source, target_crops, fourrier=True)
+                # histogram = histogram * MASK
                 # histogram = t.sigmoid(histogram)
                 # std, mean = t.std_mean(histogram, dim=-1, keepdim=True)
                 # histogram = (histogram - mean)/std
@@ -86,17 +86,19 @@ def eval_displacement():
 
             # do it in both directions target -> source and source -> target
             histogram = get_histogram(source, target)
-            shift_hist = get_shift(WIDTH, CROP_SIZE, histogram, crops_idx)
+            # shift_hist = get_shift(WIDTH, CROP_SIZE, histogram, crops_idx)
+            shift_hist = histogram.cpu()
             # histogram = get_histogram(target, source)
             # shift_hist += t.flip(get_shift(WIDTH, CROP_SIZE, histogram, crops_idx), dims=(-1, ))
 
-            f = interpolate.interp1d(np.linspace(0, 1024, OUTPUT_SIZE), shift_hist, kind="linear")
+            f = interpolate.interp1d(np.linspace(0, 1024, OUTPUT_SIZE), shift_hist, kind="cubic")
             interpolated = f(np.arange(1024))
             # interpolated = np.interp(np.arange(0, 1024), np.linspace(0, 1024, OUTPUT_SIZE), shift_hist.numpy())
             ret = -(np.argmax(interpolated) - 512)
             displac_mult = 1024/WIDTH
-            abs_err += abs(ret - displ.numpy()[0])/displac_mult
-            errors.append((ret - displ.numpy()[0])/displac_mult)
+            tmp_err = (ret - displ.numpy()[0])/displac_mult
+            abs_err += abs(tmp_err)
+            errors.append(tmp_err)
             if VISUALIZE and abs(ret - displ.numpy()[0]) >= TOLERANCE:
                 plot_displacement(source.squeeze(0).cpu(),
                                   target.squeeze(0).cpu(),

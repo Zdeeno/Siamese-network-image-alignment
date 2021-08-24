@@ -28,7 +28,7 @@ class GANAugemntation(t.nn.Module):
                 return x
 
 
-AUG_P = 0.25
+AUG_P = 0.15
 
 batch_augmentations = t.nn.Sequential(
     K.augmentation.RandomAffine(t.tensor(10.0),
@@ -159,6 +159,21 @@ def get_shift(img_width, crop_width, histogram, crops_idx):
     return final_hist[hist_size//2:-hist_size//2]
 
 
+def fft_compare(a, b):
+    x = t.fft.fftn(a)
+    y = t.fft.fftn(b)
+
+    y = y.imag
+    fab = t.multiply(x, y)
+
+    res = t.fft.ifft(fab)
+    offsets = res.imag
+    for i in range(offsets.dim() - 1):
+        offsets = t.sum(offsets, dim=0)
+    offsets = t.roll(offsets, shifts=(offsets.size(0)//2 - 1, ), dims=(0, ))
+    return offsets
+
+
 def affine(img, rotate, translate):
     # rotate - deg, translate - [width, height]
     device = img.device
@@ -171,3 +186,4 @@ def plot_img_pair(img1, img2):
     axarr[0].imshow(img1.permute(1, 2, 0), aspect="auto")
     axarr[1].imshow(img2.permute(1, 2, 0), aspect="auto")
     plt.show()
+
