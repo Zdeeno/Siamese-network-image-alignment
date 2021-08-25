@@ -36,7 +36,7 @@ EVAL_LIMIT = 1000
 TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_7"
+MODEL = "model_10"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3

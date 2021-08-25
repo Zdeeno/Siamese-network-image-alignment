@@ -140,8 +140,7 @@ class Siamese(t.nn.Module):
         self.padding = padding
 
     def forward(self, source, target, padding=None, fourrier=False):
-        with t.no_grad():
-            source = self.backbone(source)
+        source = self.backbone(source)
         target = self.backbone(target)
         if fourrier:
             score_map = fft_compare(source.squeeze(0), target.squeeze(0))

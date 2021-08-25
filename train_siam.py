@@ -3,7 +3,7 @@ import torch as t
 from parser_nordland import RectifiedNordland
 from model import Siamese, get_custom_CNN, get_pretrained_VGG11, get_super_backbone, save_model, load_model
 from torch.utils.data import DataLoader
-from torch.optim import SGD, Adam
+from torch.optim import SGD, AdamW
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
 from torch.nn.functional import softmax
 from tqdm import tqdm
@@ -14,14 +14,14 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 EPOCHS = 100
 LR = 3e-5
 EVAL_RATE = 1
 CROP_SIZES = [56]  # [56 + 16*i for i in range(5)]
 FRACTION = 8
 PAD = get_pad(CROP_SIZES[0])
-SMOOTHNESS = PAD
+SMOOTHNESS = 3
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 # device = t.device("cpu")
 batch_augmentations = batch_augmentations.to(device)
@@ -35,7 +35,7 @@ val_loader = DataLoader(val, 1, shuffle=False)
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 model = Siamese(backbone, padding=PAD).to(device)
-optimizer = Adam(model.parameters(), lr=LR)
+optimizer = AdamW(model.parameters(), lr=LR)
 # loss = CrossEntropyLoss()
 loss = BCEWithLogitsLoss()
 # loss = MSELoss()
@@ -63,10 +63,10 @@ def train_loop(epoch):
         # target = batch_augmentations(target)
         out = model(source, target, padding=PAD)
         optimizer.zero_grad()
-        heatmap[heatmap > 0] = 1.0
+        # heatmap[heatmap > 0] = 1.0
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
-        # l = loss(out, t.argmax(heatmap.long(), dim=-1))
-        l = loss(out, heatmap)
+        l = loss(out, t.argmax(heatmap.long(), dim=-1))
+        # l = loss(out, heatmap)
         loss_sum += l.cpu().detach().numpy()
         l.backward()
         optimizer.step()
@@ -106,8 +106,8 @@ def eval_loop(epoch):
 
 
 if __name__ == '__main__':
-    LOAD_EPOCH = 0
-    # model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    LOAD_EPOCH = 10
+    model, optimizer = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)
