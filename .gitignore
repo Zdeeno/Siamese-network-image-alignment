@@ -2,3 +2,6 @@ __pycache__
 *.csv
 .idea
 DS_Store
+*.swo
+*.swp
+results*/
