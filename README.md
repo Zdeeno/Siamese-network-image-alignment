@@ -10,6 +10,8 @@ Align images from different seasons using deep learning
 
 Unzip them etc
 
+Additionally, a good model is available [here](https://datasets.chronorobotics.tk/s/zp2x7Mqxc0fNwEm).
+
 ## Install
 
 Do `pip3 install torchvision kornia einops`
