@@ -14,7 +14,7 @@ def get_pad(crop):
     return (crop - 8) // 16
 
 
-BATCH_SIZE = 32
+BATCH_SIZE = 32  # higher better
 EPOCHS = 100
 LR = 3e-5
 EVAL_RATE = 1

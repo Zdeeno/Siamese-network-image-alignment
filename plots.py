@@ -24,6 +24,6 @@ def error_distribution(files: [str], names: [str]):
 if __name__ == '__main__':
     error_distribution(["/home/zdeeno/Documents/Work/GRIEF/results/grief_errors.csv",
                         "/home/zdeeno/Documents/Work/GRIEF/results/sift_errors.csv",
-                        "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_10/errors.csv",
+                        "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_41/errors.csv",
                         "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_48/errors.csv"],
-                       ["grief", "sift", "siam", "siam_rectified"])
+                       ["grief", "sift", "model_41", "model_48"])

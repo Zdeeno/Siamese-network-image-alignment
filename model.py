@@ -171,8 +171,9 @@ class Siamese(t.nn.Module):
         # [1 x (B.C) x H' x W']) and setting the number of groups to the size of
         # the batch. This grouped convolution/correlation is equivalent to a
         # correlation between the two images, though it is not obvious.
-        match_map = conv2d(embed_srch.view(1, b * c, h, w),
-                           embed_ref, groups=b, padding=(0, padding))
+        # match_map = conv2d(embed_srch.view(1, b * c, h, w), embed_ref, groups=b, padding=(0, padding))
+        match_map = F.conv2d(F.pad(embed_srch.view(1, b * c, h, w), pad=(padding, padding, 0, 0), mode='circular'),
+                             embed_ref, groups=b)
         # Here we reorder the dimensions to get back the batch dimension.
         match_map = match_map.permute(1, 0, 2, 3)
 

@@ -28,7 +28,7 @@ class GANAugemntation(t.nn.Module):
                 return x
 
 
-AUG_P = 0.15
+AUG_P = 0.05
 
 batch_augmentations = t.nn.Sequential(
     K.augmentation.RandomAffine(t.tensor(10.0),
