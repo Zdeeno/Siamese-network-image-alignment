@@ -36,8 +36,8 @@ val_loader = DataLoader(val, 1, shuffle=False)
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 model = Siamese(backbone, padding=PAD).to(device)
 optimizer = AdamW(model.parameters(), lr=LR)
-# loss = CrossEntropyLoss()
-loss = BCEWithLogitsLoss()
+loss = CrossEntropyLoss()
+#loss = BCEWithLogitsLoss()
 # loss = MSELoss()
 
 
@@ -63,6 +63,9 @@ def train_loop(epoch):
         # target = batch_augmentations(target)
         out = model(source, target, padding=PAD)
         optimizer.zero_grad()
+        #print(out.shape)
+        #print(heatmap.long().shape)
+        #print(t.argmax(heatmap.long(), dim=-1).shape)
         # heatmap[heatmap > 0] = 1.0
         # print(t.where(heatmap == 1)[1].view(BATCH_SIZE, 3))
         l = loss(out, t.argmax(heatmap.long(), dim=-1))
@@ -107,7 +110,7 @@ def eval_loop(epoch):
 
 if __name__ == '__main__':
     LOAD_EPOCH = 0
-    model, optimizer = load_model(model, "/mnt/data/style_transfers/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    #model, optimizer = load_model(model, "/mnt/data/style_transfers/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)

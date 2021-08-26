@@ -1,0 +1,27 @@
+Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+Clipping input data to the valid range for imshow with RGB data ([0..1] for floats or [0..255] for integers).
+  0%|          | 0/1782 [00:00<?, ?it/s]  0%|          | 0/1782 [00:03<?, ?it/s]
+[56]
+Getting quality of /mnt/data/style_transfers/datasets/nordland_rectified/train/winter
+Getting quality of /mnt/data/style_transfers/datasets/nordland_rectified/train/spring
+Getting quality of /mnt/data/style_transfers/datasets/nordland_rectified/train/fall
+Getting quality of /mnt/data/style_transfers/datasets/nordland_rectified/train/summer
+[(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]
+Loaded model at /mnt/data/style_transfers/alignment/results_siam/model_0.pt
+Model saved to: ./results_siam/model_0.pt
+Evaluating model after epoch 0
+Training model epoch 0
+Traceback (most recent call last):
+  File "train_siam.py", line 116, in <module>
+    train_loop(epoch)
+  File "train_siam.py", line 68, in train_loop
+    l = loss(out, t.argmax(heatmap.long(), dim=-1))
+  File "/mnt/appl/software/PyTorch/1.7.1-fosscuda-2020b/lib/python3.8/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/mnt/appl/software/PyTorch/1.7.1-fosscuda-2020b/lib/python3.8/site-packages/torch/nn/modules/loss.py", line 629, in forward
+    return F.binary_cross_entropy_with_logits(input, target,
+  File "/mnt/appl/software/PyTorch/1.7.1-fosscuda-2020b/lib/python3.8/site-packages/torch/nn/functional.py", line 2580, in binary_cross_entropy_with_logits
+    raise ValueError("Target size ({}) must be the same as input size ({})".format(target.size(), input.size()))
+ValueError: Target size (torch.Size([32])) must be the same as input size (torch.Size([32, 64]))
