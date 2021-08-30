@@ -36,14 +36,14 @@ EVAL_LIMIT = 1000
 TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_10"
+MODEL = "model_58"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 # backbone = get_super_backbone()
 if MODEL_TYPE == "siam":
     model = Siamese(backbone, padding=PAD).to(device)
-model = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
+model = load_model(model, "/mnt/data/style_transfers/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
 
 transform = Resize(192)
 # transform = Resize(192 * 2)
