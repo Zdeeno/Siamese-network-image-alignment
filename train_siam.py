@@ -110,7 +110,7 @@ def eval_loop(epoch):
 
 if __name__ == '__main__':
     LOAD_EPOCH = 0
-    #model, optimizer = load_model(model, "/mnt/data/style_transfers/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
+    model, optimizer = load_model(model, "/mnt/data/style_transfers/alignment/results_siam/model_" + str(LOAD_EPOCH) + ".pt", optimizer=optimizer)
 
     for epoch in range(LOAD_EPOCH, EPOCHS):
         save_model(model, "siam", epoch, optimizer)
