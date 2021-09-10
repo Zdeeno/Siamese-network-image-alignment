@@ -10,8 +10,17 @@ from copy import deepcopy
 from utils import fft_compare
 
 
-def create_block(in_channel, out_channel, kernel, stride, padding, pooling):
+def create_conv_block(in_channel, out_channel, kernel, stride, padding, pooling):
     net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
+                t.nn.BatchNorm2d(out_channel),
+                t.nn.ReLU()]
+    if pooling[0] > 0 or pooling[1] > 0:
+        net_list.append(t.nn.MaxPool2d(pooling, pooling))
+    return t.nn.Sequential(*net_list)
+
+
+def create_deconv_block(in_channel, out_channel, kernel, stride, padding, pooling):
+    net_list = [t.nn.ConvTranspose2d(in_channel, out_channel, kernel, stride, padding),
                 t.nn.BatchNorm2d(out_channel),
                 t.nn.ReLU()]
     if pooling[0] > 0 or pooling[1] > 0:
@@ -23,15 +32,46 @@ class CNN(t.nn.Module):
 
     def __init__(self):
         super(CNN, self).__init__()
-        self.backbone = t.nn.Sequential(create_block(3, 16, 3, 1, 1, (2, 2)),
-                                        create_block(16, 64, 3, 1, 1, (2, 2)),
-                                        create_block(64, 256, 3, 1, 1, (2, 2)),
-                                        create_block(256, 512, 3, 1, 1, (2, 1)),
-                                        create_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
+        self.backbone = t.nn.Sequential(create_conv_block(3, 16, 3, 1, 1, (2, 2)),
+                                        create_conv_block(16, 64, 3, 1, 1, (2, 2)),
+                                        create_conv_block(64, 256, 3, 1, 1, (2, 2)),
+                                        create_conv_block(256, 512, 3, 1, 1, (2, 1)),
+                                        create_conv_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
 
     def forward(self, x):
         x = self.backbone(x)
         return x
+
+
+class UNet(t.nn.Module):
+
+    def __init__(self):
+        super(UNet, self).__init__()
+        self.backbone = t.nn.Sequential(create_conv_block(3, 16, 3, 1, 1, (2, 2)),
+                                        create_conv_block(16, 64, 3, 1, 1, (2, 2)),
+                                        create_conv_block(64, 256, 3, 1, 1, (2, 2)),
+                                        create_conv_block(256, 512, 3, 1, 1, (2, 1)),
+                                        create_conv_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
+        self.down1 = create_conv_block(256, 512, 3, 1, 1, (1, 2))
+        self.down2 = create_conv_block(512, 1024, 3, 1, 1, (1, 2))
+        self.up1 = create_deconv_block(1024, 512, (3, 4), (1, 2), 1, (1, 1))
+        self.up2 = create_deconv_block(512, 256, (3, 4), (1, 2), 1, (1, 1))
+
+    def forward(self, x):
+        x = self.backbone(x)
+        if x.size(-1) % 2 > 0:
+            x_pad = F.pad(x, (1, 0))
+        else:
+            x_pad = x
+        x1_1 = self.down1(x_pad)
+        x1_2 = self.down2(x1_1)
+        x2_2 = self.up1(x1_2) + x1_1
+        out = self.up2(x2_2) + x_pad
+        if x.size(-1) % 2 > 0:
+            out = out[..., 1:]
+            return out
+        else:
+            return out
 
 
 class SuperBackbone(t.nn.Module):
@@ -125,6 +165,10 @@ def get_pretrained_VGG11():
 
 def get_custom_CNN():
     return CNN()
+
+
+def get_UNet():
+    return UNet()
 
 
 def get_super_backbone():
