@@ -15,7 +15,7 @@ from utils import plot_img_pair
 
 class ImgPairDataset(Dataset):
 
-    def __init__(self, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
+    def __init__(self, path="/mnt/data/style_transfers/datasets/nordland/train"):
         super(ImgPairDataset, self).__init__()
         self.width = 512
         self.height = 288
@@ -50,7 +50,7 @@ class ImgPairDataset(Dataset):
 
 class RectifiedImgPairDataset(Dataset):
 
-    def __init__(self, path="/home/zdeeno/Documents/Datasets/nordland_rectified"):
+    def __init__(self, path="/mnt/data/style_transfers/datasets/nordland_rectified/train"):
         super(RectifiedImgPairDataset, self).__init__()
         self.width = 512
         self.height = 288
@@ -114,7 +114,7 @@ class RectifiedImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/nordland/NORDLAND512/train"):
+    def __init__(self, crop_width, fraction, smoothness, path="/mnt/data/style_transfers/datasets/nordland_rectified/train"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction

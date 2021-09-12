@@ -2,6 +2,7 @@ __pycache__
 *.csv
 .idea
 DS_Store
+logs
 *.swo
 *.swp
 results*/

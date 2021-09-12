@@ -43,7 +43,7 @@ backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 # backbone = get_super_backbone()
 if MODEL_TYPE == "siam":
     model = Siamese(backbone, padding=PAD).to(device)
-model = load_model(model, "/home/zdeeno/Documents/Work/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
+model = load_model(model, "/mnt/data/style_transfers/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
 
 transform = Resize(192)
 # transform = Resize(192 * 2)

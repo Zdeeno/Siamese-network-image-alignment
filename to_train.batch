@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --nodes=1               # number of nodes
+#SBATCH --ntasks-per-node=1     # processes per node
+#SBATCH --cpus-per-task=4       # number of CPU cores per process
+#SBATCH --gres=gpu:1            # GPUs per node 
+#SBATCH --partition=gpu         # put the job into the gpu partition/queue
+#SBATCH --output=logs/siam_training_%j.out     # file name for stdout/stderr
+#SBATCH --mem=32G               # how much CPU memory can be allocated for the job (hardware limit: 384 GB per node)
+#SBATCH --time=24:00:00         # maximum wall time allocated for the job (max 24h for the gpu partition)
+#SBATCH --job-name=def_siam%j        # job name (default is the name of this file)
+
+ml torchvision/0.8.2-fosscuda-2020b-PyTorch-1.7.1
+ml tqdm/4.56.2-GCCcore-10.2.0
+ml scikit-learn/0.24.1-fosscuda-2020b
+ml PyTorch/1.7.1-fosscuda-2020b
+ml matplotlib/3.3.3-fosscuda-2020b
+
+python train_siam.py
