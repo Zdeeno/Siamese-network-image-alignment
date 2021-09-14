@@ -19,7 +19,7 @@ device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 
 VISUALIZE = True
 WIDTH = 512
-CROP_SIZE = WIDTH # WIDTH - 8
+CROP_SIZE = WIDTH - 8
 PAD = (CROP_SIZE - 8) // 16
 FRACTION = 8
 OUTPUT_SIZE = 64  #  WIDTH // FRACTION
@@ -36,20 +36,20 @@ EVAL_LIMIT = 1000
 TOLERANCE = 50
 
 MODEL_TYPE = "siam"
-MODEL = "model_58"
+MODEL = "model_47"
 
 # backbone = get_pretrained_VGG11()   # use pretrained network - PAD = 7
 backbone = get_custom_CNN()  # use custom network trained from scratch PAD = 3
 # backbone = get_super_backbone()
 if MODEL_TYPE == "siam":
     model = Siamese(backbone, padding=PAD).to(device)
-model = load_model(model, "/mnt/data/style_transfers/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
+model = load_model(model, "/Users/pavellinder/Work/alignment/results_" + MODEL_TYPE + "/" + MODEL + ".pt")
 
 transform = Resize(192)
 # transform = Resize(192 * 2)
 # transform = Resize((288, 512))
 crops_num = int((WIDTH // CROP_SIZE) * CROPS_MULTIPLIER)
-crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int)#  + FRACTION // 2
+crops_idx = np.linspace(0, WIDTH-CROP_SIZE, crops_num, dtype=int) + FRACTION // 2
 
 # crops_idx = np.array([WIDTH // 2 - CROP_SIZE // 2])
 # crops_num = 1
@@ -77,7 +77,7 @@ def eval_displacement():
                 batched_source = src.repeat(crops_num//BATCHING, 1, 1, 1)
                 # batched_source = t.zeros_like(batched_source)
                 # batched_source = src
-                histogram = model(batched_source, target_crops, fourrier=True)
+                histogram = model(batched_source, target_crops)  # , fourrier=True)
                 # histogram = histogram * MASK
                 # histogram = t.sigmoid(histogram)
                 # std, mean = t.std_mean(histogram, dim=-1, keepdim=True)
@@ -94,7 +94,7 @@ def eval_displacement():
             f = interpolate.interp1d(np.linspace(0, 1024, OUTPUT_SIZE), shift_hist, kind="cubic")
             interpolated = f(np.arange(1024))
             # interpolated = np.interp(np.arange(0, 1024), np.linspace(0, 1024, OUTPUT_SIZE), shift_hist.numpy())
-            ret = -(np.argmax(interpolated) - 512)
+            ret = -(np.argmax(interpolated) - 512)  # shift by 8 inside center of bin
             displac_mult = 1024/WIDTH
             tmp_err = (ret - displ.numpy()[0])/displac_mult
             abs_err += abs(tmp_err)

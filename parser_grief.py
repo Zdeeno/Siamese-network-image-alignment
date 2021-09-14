@@ -8,7 +8,7 @@ from utils import plot_samples
 
 class ImgPairDataset(Dataset):
 
-    def __init__(self, path="/home/zdeeno/Documents/Datasets/grief_jpg", dataset=None):
+    def __init__(self, path="/Users/pavellinder/Work/datasets/grief_jpg", dataset=None):
         super(ImgPairDataset, self).__init__()
         self.width = 1024
         self.height = 384
