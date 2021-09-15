@@ -183,15 +183,24 @@ class Siamese(t.nn.Module):
         self.out_batchnorm = t.nn.BatchNorm2d(1)
         self.padding = padding
 
-    def forward(self, source, target, padding=None, fourrier=False):
+    def forward(self, source, target, padding=None, displac=None):
         source = self.backbone(source)
         target = self.backbone(target)
-        if fourrier:
-            score_map = fft_compare(source.squeeze(0), target.squeeze(0))
-        else:
+        if displac is None:
             score_map = self.match_corr(target, source, padding=padding)
             score_map = self.out_batchnorm(score_map).squeeze(1).squeeze(1)
-        return score_map
+            return score_map
+        else:
+            # for importance visualisation
+            if displac > 0:
+                shifted_target = F.pad(target, [abs(displac), abs(displac), 0, 0], mode="circular")[..., 2*displac:]
+            elif displac < 0:
+                shifted_target = F.pad(target, [abs(displac), abs(displac), 0, 0], mode="circular")[..., :2*displac]
+            else:
+                shifted_target = target
+            score = source * shifted_target
+            score = t.sum(score, dim=[1, 2])
+            return score
 
     def match_corr(self, embed_ref, embed_srch, padding=None):
         """ Matches the two embeddings using the correlation layer. As per usual
@@ -204,6 +213,7 @@ class Siamese(t.nn.Module):
         Returns:
             match_map: (torch.Tensor) The correlation between
         """
+
         if padding is None:
             padding = self.padding
         b, c, h, w = embed_srch.shape
@@ -215,12 +225,14 @@ class Siamese(t.nn.Module):
         # [1 x (B.C) x H' x W']) and setting the number of groups to the size of
         # the batch. This grouped convolution/correlation is equivalent to a
         # correlation between the two images, though it is not obvious.
-        # match_map = conv2d(embed_srch.view(1, b * c, h, w), embed_ref, groups=b, padding=(0, padding))
-        match_map = F.conv2d(F.pad(embed_srch.view(1, b * c, h, w), pad=(padding, padding, 0, 0), mode='circular'),
-                             embed_ref, groups=b)
-        # Here we reorder the dimensions to get back the batch dimension.
-        match_map = match_map.permute(1, 0, 2, 3)
 
+        if self.training:
+            match_map = conv2d(embed_srch.view(1, b * c, h, w), embed_ref, groups=b, padding=(0, padding))
+            match_map = match_map.permute(1, 0, 2, 3)
+        else:
+            match_map = F.conv2d(F.pad(embed_srch.view(1, b * c, h, w), pad=(padding, padding, 1, 1), mode='circular'),
+                                 embed_ref, groups=b)
+            match_map = t.max(match_map.permute(1, 0, 2, 3), dim=2)[0].unsqueeze(2)
         return match_map
 
 

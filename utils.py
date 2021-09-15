@@ -11,19 +11,19 @@ import random
 from torchvision.utils import save_image
 
 
-class GANAugemntation(t.nn.Module):
-
-    def __init__(self, p=0.5):
-        super(GANAugemntation, self).__init__()
-        self.augmentor = StyleAugmentor()
-        self.p = p
-
-    def forward(self, x):
-        with torch.no_grad():
-            if random.random() < self.p and x.size(-1) > 40:
-                return self.augmentor(x, alpha=0.25)
-            else:
-                return x
+# class GANAugemntation(t.nn.Module):
+#
+#     def __init__(self, p=0.5):
+#         super(GANAugemntation, self).__init__()
+#         self.augmentor = StyleAugmentor()
+#         self.p = p
+#
+#     def forward(self, x):
+#         with torch.no_grad():
+#             if random.random() < self.p and x.size(-1) > 40:
+#                 return self.augmentor(x, alpha=0.25)
+#             else:
+#                 return x
 
 
 AUG_P = 0.05
@@ -82,8 +82,11 @@ def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/
         plt.close()
 
 
-def plot_displacement(source, target, prediction, displacement=None, name=0, dir="results/0/"):
-    f, axarr = plt.subplots(3)
+def plot_displacement(source, target, prediction, displacement=None, importance=None, name=0, dir="results/0/"):
+    if importance is None:
+        f, axarr = plt.subplots(3)
+    else:
+        f, axarr = plt.subplots(4)
     heatmap_width = prediction.size(-1)
     source_width = source.size(-1)
     resized_indices = np.arange(0, prediction.size(-1)) * (source_width / heatmap_width)
@@ -106,6 +109,9 @@ def plot_displacement(source, target, prediction, displacement=None, name=0, dir
         axarr[2].axvline(x=displacement + 256, ymin=0, ymax=1, c="b", ls="--")
     axarr[2].plot(pred)
     axarr[2].set_xlim((0, source_width - 1))
+    if importance is not None:
+        axarr[3].plot(importance)
+        axarr[3].set_xlim((0, source_width - 1))
     Path(dir).mkdir(parents=True, exist_ok=True)
     plt.savefig(dir + str(name) + ".png")
     plt.close()
