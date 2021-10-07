@@ -9,6 +9,8 @@ from pathlib import Path
 import kornia as K
 import random
 from torchvision.utils import save_image
+from scipy import interpolate
+
 
 
 # class GANAugemntation(t.nn.Module):
@@ -67,6 +69,8 @@ def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/
         source_width = source.size(-1)
         heatmap_width = heatmap.size(-1)
         heatmap_idx = t.argmax(heatmap)
+        fx = interpolate.interp1d(np.linspace(0, 512, 64), heatmap, kind="linear")
+        heatmap_plot = fx(np.arange(512))
         target_fullsize_start = int(heatmap_idx * (source_width/heatmap_width) - target_width//2)
         target_fullsize[:, :, max(target_fullsize_start, 0):max(target_fullsize_start, 0)+target_width] = target
         axarr[0].imshow(source.permute(1, 2, 0), aspect="auto")
@@ -74,9 +78,16 @@ def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/
         resized_indices = np.arange(0, prediction.size(-1)) * (source_width/heatmap_width)
         pred = np.interp(np.arange(0, source_width), resized_indices, prediction.numpy())
         predicted_max = np.argmax(pred)
-        axarr[2].axvline(x=predicted_max, ymin=0, ymax=1, c="r")
+        # axarr[2].axvline(x=predicted_max, ymin=0, ymax=1, c="r")
         axarr[2].plot(pred)
+        axarr[2].plot(heatmap_plot)
         axarr[2].set_xlim((0, source_width - 1))
+        axarr[2].set_xlabel("Displacement histogram")
+        axarr[2].set_ylabel("Likelihood")
+        axarr[2].grid()
+        axarr[2].legend(["prediction", "target"])
+        f.suptitle("Training example")
+        f.tight_layout()
         Path(dir).mkdir(parents=True, exist_ok=True)
         plt.savefig(dir + str(name) + "png")
         plt.close()
@@ -93,25 +104,26 @@ def plot_displacement(source, target, prediction, displacement=None, importance=
     pred = np.interp(np.arange(0, source_width), resized_indices, prediction.numpy())
     predicted_max = np.argmax(pred)
     predicted_shift = -(256 - predicted_max)
-    target_shifted = t.zeros_like(target)
     if displacement is not None:
         displacement = int(displacement)
-    if predicted_shift > 0:
-        target_shifted[..., predicted_shift:] = target[..., :-predicted_shift]
-    elif predicted_shift < 0:
-        target_shifted[..., :predicted_shift] = target[..., -predicted_shift:]
-    else:
-        target_shifted = target
+
+    target_shifted = t.roll(target, predicted_shift, -1)
     axarr[0].imshow(source.permute(1, 2, 0), aspect="auto")
     axarr[1].imshow(target_shifted.permute(1, 2, 0), aspect="auto")
     axarr[2].axvline(x=predicted_max, ymin=0, ymax=1, c="r")
     if displacement is not None:
         axarr[2].axvline(x=displacement + 256, ymin=0, ymax=1, c="b", ls="--")
     axarr[2].plot(pred)
+    axarr[2].set_xlabel("Displacement histogram")
+    axarr[2].set_ylabel("Likelihood")
+    axarr[2].grid()
+    axarr[2].legend(["prediction", "annotation", "histogram"])
     axarr[2].set_xlim((0, source_width - 1))
     if importance is not None:
         axarr[3].plot(importance)
         axarr[3].set_xlim((0, source_width - 1))
+    f.suptitle("Evaluation example")
+    f.tight_layout()
     Path(dir).mkdir(parents=True, exist_ok=True)
     plt.savefig(dir + str(name) + ".png")
     plt.close()
@@ -125,9 +137,14 @@ def plot_similarity(img1, img2, time_histogram, name=None):
     max_y = t.max(time_histogram)
     # axarr[2].axvline(x=predicted_max, ymin=0, ymax=max_y, c="r")
     axarr[2].plot(np.arange(-time_histogram.size(0)//2, time_histogram.size(0)//2), time_histogram)
+    axarr[2].set_xlabel("offset from $i_k$")
+    axarr[2].set_ylabel("similarity")
+    axarr[2].grid()
     # axarr[2].set_xlim((0, img1.size(-1) - 1))
     # Path(dir).mkdir(parents=True, exist_ok=True)
     # plt.savefig(dir + str(name) + ".png")
+    f.suptitle("Alignment in time")
+    f.tight_layout()
     if name is not None:
         plt.savefig("results_aligning/" + name + ".png")
     else:

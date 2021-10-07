@@ -6,4 +6,5 @@ logs
 *.swo
 *.swp
 *.eps
+*.png
 results*/
