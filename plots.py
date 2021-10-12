@@ -50,13 +50,32 @@ def plot_cutout_region(img_path: str, region1: [[int], [int]], region2: [[int], 
     plt.close()
 
 
+def plot_annotation_ambiguity(img_path1: str, img_path2: str):
+    img1 = image.imread(img_path1)
+    img2 = image.imread(img_path2)
+    f, axarr = plt.subplots(2)
+    axarr[0].imshow(img1, aspect="auto")
+    axarr[1].imshow(img2, aspect="auto")
+    axarr[0].axvline(x=390, ymin=0, ymax=420, c="b")
+    axarr[1].axvline(x=400, ymin=0, ymax=420, c="b")
+    axarr[0].axvline(x=750, ymin=0, ymax=420, c="r")
+    axarr[1].axvline(x=715, ymin=0, ymax=420, c="r")
+
+    f.suptitle("Annotation ambiguity")
+    f.tight_layout()
+    plt.savefig("./ambiguity.png")
+    plt.close()
+
+
 if __name__ == '__main__':
-    plot_cutout_region("/home/zdeeno/Documents/Datasets/nordland_rectified/spring/008409.png", [[80, 180], [511 - 180, 511 - 80]], [[0, 180], [511 - 180, 511]])
-    error_distribution([# "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors.csv",
-                        "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors_" + DATASET_PLOT.lower() + ".csv",
-                        "/home/zdeeno/Documents/Work/GRIEF/results/sift_errors_" + DATASET_PLOT.lower() + ".csv",
-                        # "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_48/errors.csv",
-                        "/home/zdeeno/Documents/Work/alignment/results_siam_cnn/eval_model_47/" + DATASET_PLOT.lower() + "_errors.csv"],
-                        # "/home/zdeeno/Documents/Work/SuperPointPretrainedNetwork/superpixel_errors_" + DATASET_PLOT.lower()],
-                       # ["grief", "sift", "model_41", "model_47"]
-                         ["grief", "sift", "siamese"])
+    plot_annotation_ambiguity("/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_00/000000475.jpg",
+                              "/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_01/000000475.jpg")
+    # plot_cutout_region("/home/zdeeno/Documents/Datasets/nordland_rectified/spring/008409.png", [[80, 180], [511 - 180, 511 - 80]], [[0, 180], [511 - 180, 511]])
+    # error_distribution([# "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors.csv",
+    #                     "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors_" + DATASET_PLOT.lower() + ".csv",
+    #                     "/home/zdeeno/Documents/Work/GRIEF/results/sift_errors_" + DATASET_PLOT.lower() + ".csv",
+    #                     # "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_48/errors.csv",
+    #                     "/home/zdeeno/Documents/Work/alignment/results_siam_cnn/eval_model_47/" + DATASET_PLOT.lower() + "_errors.csv"],
+    #                     # "/home/zdeeno/Documents/Work/SuperPointPretrainedNetwork/superpixel_errors_" + DATASET_PLOT.lower()],
+    #                    # ["grief", "sift", "model_41", "model_47"]
+    #                      ["grief", "sift", "siamese"])
