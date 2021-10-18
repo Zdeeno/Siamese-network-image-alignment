@@ -11,14 +11,18 @@ mpl.use('Qt5Agg')
 
 DATASET_NAME = "planetarium"
 DATASET_PLOT = "planetarium"
+ERROR_CAP = 512
 
 
 def error_distribution(files: [str], names: [str]):
     for file in files:
         array = np.genfromtxt(file, delimiter=',')
-        array = np.array(sorted(abs(np.clip(array, -512, 512))))
+        array = np.array(sorted(abs(np.clip(array, -ERROR_CAP, ERROR_CAP))))
         print(auc(array, np.linspace(0, 1, len(array))))
-        plt.plot(array, np.linspace(0, 1, len(array)) * 100, linewidth=2)
+        out_fracs = np.zeros(ERROR_CAP)
+        for i in range(ERROR_CAP):
+            out_fracs[i] = np.sum(array < i)/float(len(array))
+        plt.plot(out_fracs * 100, linewidth=2)
 
     plt.title("Accuracies on " + DATASET_NAME + " dataset")
     plt.grid()
@@ -68,14 +72,14 @@ def plot_annotation_ambiguity(img_path1: str, img_path2: str):
 
 
 if __name__ == '__main__':
-    plot_annotation_ambiguity("/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_00/000000475.jpg",
-                              "/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_01/000000475.jpg")
+    # plot_annotation_ambiguity("/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_00/000000475.jpg",
+    #                           "/home/zdeeno/Documents/Datasets/grief_jpg/carlevaris/season_01/000000475.jpg")
     # plot_cutout_region("/home/zdeeno/Documents/Datasets/nordland_rectified/spring/008409.png", [[80, 180], [511 - 180, 511 - 80]], [[0, 180], [511 - 180, 511]])
-    # error_distribution([# "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors.csv",
-    #                     "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors_" + DATASET_PLOT.lower() + ".csv",
-    #                     "/home/zdeeno/Documents/Work/GRIEF/results/sift_errors_" + DATASET_PLOT.lower() + ".csv",
-    #                     # "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_48/errors.csv",
-    #                     "/home/zdeeno/Documents/Work/alignment/results_siam_cnn/eval_model_47/" + DATASET_PLOT.lower() + "_errors.csv"],
-    #                     # "/home/zdeeno/Documents/Work/SuperPointPretrainedNetwork/superpixel_errors_" + DATASET_PLOT.lower()],
-    #                    # ["grief", "sift", "model_41", "model_47"]
-    #                      ["grief", "sift", "siamese"])
+    error_distribution([# "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors.csv",
+                        "/home/zdeeno/Documents/Work/GRIEF/results/grief_errors_" + DATASET_PLOT.lower() + ".csv",
+                        "/home/zdeeno/Documents/Work/GRIEF/results/sift_errors_" + DATASET_PLOT.lower() + ".csv",
+                        # "/home/zdeeno/Documents/Work/alignment/results_siam/eval_model_48/errors.csv",
+                        "/home/zdeeno/Documents/Work/alignment/results_siam_cnn/eval_model_47/" + DATASET_PLOT.lower() + "_errors.csv"],
+                        # "/home/zdeeno/Documents/Work/SuperPointPretrainedNetwork/superpixel_errors_" + DATASET_PLOT.lower()],
+                       # ["grief", "sift", "model_41", "model_47"]
+                         ["grief", "sift", "siamese"])
