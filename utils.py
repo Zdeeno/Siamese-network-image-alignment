@@ -82,7 +82,7 @@ def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/
         axarr[2].plot(np.arange(-256, 256), pred)
         axarr[2].plot(np.arange(-256, 256), heatmap_plot)
         axarr[2].set_xlim((0, source_width - 1))
-        axarr[2].set_xlabel("Displacement histogram")
+        axarr[2].set_xlabel("Displacement")
         axarr[2].set_ylabel("Likelihood")
         axarr[2].set_xlim((-256, 256))
         axarr[2].grid()
@@ -115,10 +115,10 @@ def plot_displacement(source, target, prediction, displacement=None, importance=
     if displacement is not None:
         axarr[2].axvline(x=displacement, ymin=0, ymax=1, c="b", ls="--")
     axarr[2].plot(np.arange(-256, 256), pred)
-    axarr[2].set_xlabel("Displacement histogram")
+    axarr[2].set_xlabel("Displacement")
     axarr[2].set_ylabel("Likelihood")
     axarr[2].grid()
-    axarr[2].legend(["prediction", "annotation", "histogram"])
+    axarr[2].legend(["prediction", "ground truth", "displacement likelihood"])
     axarr[2].set_xlim((-256, 256))
     if importance is not None:
         axarr[3].plot(importance)
