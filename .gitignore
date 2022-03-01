@@ -8,3 +8,4 @@ logs
 *.eps
 *.png
 results*/
+wandb
