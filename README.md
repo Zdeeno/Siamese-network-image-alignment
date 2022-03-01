@@ -1,6 +1,6 @@
-# Alignment
+# Siamese network for image registation
 
-Align images from different seasons using deep learning
+Aligns images from different seasons using deep learning
 
 ![alt text](result.png)
 
