@@ -15,7 +15,7 @@ from utils import plot_img_pair
 
 class ImgPairDataset(Dataset):
 
-    def __init__(self, path="/mnt/data/style_transfers/datasets/nordland/train"):
+    def __init__(self, path="/home/zdeeno/Documents/Datasets/nordland_rectified"):
         super(ImgPairDataset, self).__init__()
         self.width = 512
         self.height = 288
@@ -50,7 +50,7 @@ class ImgPairDataset(Dataset):
 
 class RectifiedImgPairDataset(Dataset):
 
-    def __init__(self, path="/mnt/data/style_transfers/datasets/nordland_rectified/train"):
+    def __init__(self, path="/home/zdeeno/Documents/Datasets/nordland_rectified"):
         super(RectifiedImgPairDataset, self).__init__()
         self.width = 512
         self.height = 288
@@ -114,7 +114,7 @@ class RectifiedImgPairDataset(Dataset):
 
 class CroppedImgPairDataset(ImgPairDataset):
 
-    def __init__(self, crop_width, fraction, smoothness, path="/mnt/data/style_transfers/datasets/nordland_rectified/train"):
+    def __init__(self, crop_width, fraction, smoothness, path="/home/zdeeno/Documents/Datasets/nordland_rectified"):
         super(CroppedImgPairDataset, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
@@ -186,7 +186,7 @@ class CroppedImgPairDataset(ImgPairDataset):
 class RectifiedNordland(RectifiedImgPairDataset):
 
     def __init__(self, crop_width, fraction, smoothness, path=None):
-        super(RectifiedNordland, self).__init__()
+        super(RectifiedNordland, self).__init__(path=path)
         self.crop_width = crop_width
         self.fraction = fraction
         self.smoothness = smoothness
@@ -245,8 +245,8 @@ class RectifiedNordland(RectifiedImgPairDataset):
         # crop the logo - this for some reason makes the network diverge on evaluation set
         # source = source[:, 30:, :]
         # target = target[:, 30:, :]
-        source[:, :32, -64:] = 0.0
-        if random.random() > 0.8:
+        source[:, :32, -64:] = (t.randn((3, 32, 64)) / 4 + 0.5).clip(0.2, 0.8)
+        if random.random() > 0.95:
             target = source.clone()
         if random.random() > 0.5:
             source = self.flip(source)

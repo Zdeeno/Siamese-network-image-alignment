@@ -4,175 +4,122 @@ import torch as t
 from torch.nn.functional import conv2d, conv1d
 import torch.nn as nn
 import math
-from einops import rearrange
 from torch.nn import functional as F
 from copy import deepcopy
-from utils import fft_compare
+import os
+import errno
 
 
-def create_conv_block(in_channel, out_channel, kernel, stride, padding, pooling):
-    net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
-                t.nn.BatchNorm2d(out_channel),
-                t.nn.ReLU()]
+def create_conv_block(in_channel, out_channel, kernel, stride, padding, pooling, bn=True, relu=True,
+                      pool_layer=False):
+    net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding, padding_mode="circular")]
+    if bn:
+        net_list.append(t.nn.BatchNorm2d(out_channel))
+    if relu:
+        net_list.append(t.nn.ReLU())
     if pooling[0] > 0 or pooling[1] > 0:
-        net_list.append(t.nn.MaxPool2d(pooling, pooling))
-    return t.nn.Sequential(*net_list)
-
-
-def create_deconv_block(in_channel, out_channel, kernel, stride, padding, pooling):
-    net_list = [t.nn.ConvTranspose2d(in_channel, out_channel, kernel, stride, padding),
-                t.nn.BatchNorm2d(out_channel),
-                t.nn.ReLU()]
-    if pooling[0] > 0 or pooling[1] > 0:
-        net_list.append(t.nn.MaxPool2d(pooling, pooling))
-    return t.nn.Sequential(*net_list)
-
-
-class CNN(t.nn.Module):
-
-    def __init__(self):
-        super(CNN, self).__init__()
-        self.backbone = t.nn.Sequential(create_conv_block(3, 16, 3, 1, 1, (2, 2)),
-                                        create_conv_block(16, 64, 3, 1, 1, (2, 2)),
-                                        create_conv_block(64, 256, 3, 1, 1, (2, 2)),
-                                        create_conv_block(256, 512, 3, 1, 1, (2, 1)),
-                                        create_conv_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
-
-    def forward(self, x):
-        x = self.backbone(x)
-        return x
-
-
-class UNet(t.nn.Module):
-
-    def __init__(self):
-        super(UNet, self).__init__()
-        self.backbone = t.nn.Sequential(create_conv_block(3, 16, 3, 1, 1, (2, 2)),
-                                        create_conv_block(16, 64, 3, 1, 1, (2, 2)),
-                                        create_conv_block(64, 256, 3, 1, 1, (2, 2)),
-                                        create_conv_block(256, 512, 3, 1, 1, (2, 1)),
-                                        create_conv_block(512, 256, 3, 1, 1, (3, 1)))   # 128 channels out feels better
-        self.down1 = create_conv_block(256, 512, 3, 1, 1, (1, 2))
-        self.down2 = create_conv_block(512, 1024, 3, 1, 1, (1, 2))
-        self.up1 = create_deconv_block(1024, 512, (3, 4), (1, 2), 1, (1, 1))
-        self.up2 = create_deconv_block(512, 256, (3, 4), (1, 2), 1, (1, 1))
-
-    def forward(self, x):
-        x = self.backbone(x)
-        if x.size(-1) % 2 > 0:
-            x_pad = F.pad(x, (1, 0))
-        else:
-            x_pad = x
-        x1_1 = self.down1(x_pad)
-        x1_2 = self.down2(x1_1)
-        x2_2 = self.up1(x1_2) + x1_1
-        out = self.up2(x2_2) + x_pad
-        if x.size(-1) % 2 > 0:
-            out = out[..., 1:]
-            return out
-        else:
-            return out
-
-
-class SuperBackbone(t.nn.Module):
-    # TODO: Implement this backbone: CNN -> ViT -> Conv -> BCELoss
-    def __init__(self):
-        super(SuperBackbone, self).__init__()
-        self.backbone = t.nn.Sequential(self._create_block(3, 16, 3, 1, 1, (2, 2)),
-                                        self._create_block(16, 64, 3, 1, 1, (2, 2)),
-                                        self._create_block(64, 256, 3, 1, 1, (2, 2)),
-                                        self._create_block(256, 512, 3, 1, 1, (2, 1)),
-                                        self._create_block(512, 32, 3, 1, 1, (3, 1)))
-        tr_layer = t.nn.TransformerEncoderLayer(d_model=192, nhead=4, dim_feedforward=512)
-        self.pos_encoding = PositionalEncoding(192, max_len=64)
-        self.encoder = t.nn.TransformerEncoder(tr_layer, 4)
-
-    def _create_block(self, in_channel, out_channel, kernel, stride, padding, pooling):
-        net_list = [t.nn.Conv2d(in_channel, out_channel, kernel, stride, padding),
-                    t.nn.BatchNorm2d(out_channel),
-                    t.nn.ReLU()]
-        if pooling[0] > 0 or pooling[1] > 0:
+        if not pool_layer:
             net_list.append(t.nn.MaxPool2d(pooling, pooling))
-        return t.nn.Sequential(*net_list)
+        else:
+            net_list.append(t.nn.Conv2d(out_channel, out_channel, pooling, pooling))
+    return t.nn.Sequential(*net_list)
+
+
+def create_residual_block(fs, ch, pad):
+    return t.nn.Sequential(create_conv_block(ch, ch, fs, 1, pad, (0, 0), bn=True, relu=True),
+                           t.nn.ReLU(),
+                           create_conv_block(ch, ch, fs, 1, pad, (0, 0), bn=False, relu=False))
+
+
+class CNNOLD(t.nn.Module):
+
+    def __init__(self, lp, fs, ech, res, legacy=True):
+        super(CNNOLD, self).__init__()
+        pad = fs // 2
+        self.res = res
+        self.legacy = legacy
+        if self.legacy:
+            self.backbone = t.nn.Sequential(*[create_conv_block(3, 16, 3, 1, 1, (2, 2), pool_layer=False),
+                                              create_conv_block(16, 64, 3, 1, 1, (2, 2), pool_layer=False),
+                                              create_conv_block(64, 256, 3, 1, 1, (2, 2), pool_layer=False),
+                                              create_conv_block(256, 512, 3, 1, 1, (2, 1), pool_layer=False),
+                                              create_conv_block(512, 256, 3, 1, 1, (3, 1), bn=False, relu=False,
+                                                                pool_layer=False)])
+        else:
+            self.l1 = create_conv_block(3, 16, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
+            self.l2 = create_conv_block(16, 64, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
+            self.l3 = create_conv_block(64, 256, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
+            self.l4 = create_conv_block(256, 512, fs, 1, pad, (2, 1), pool_layer=lp, relu=False)
+            self.l5 = create_conv_block(512, ech, fs, 1, pad, (3, 1), relu=False, pool_layer=lp)
+            if self.res == 1:
+                # residual blocks
+                self.l1res = create_residual_block(fs, 16, pad)
+                self.l2res = create_residual_block(fs, 64, pad)
+                self.l3res = create_residual_block(fs, 256, pad)
+                self.l4res = create_residual_block(fs, 512, pad)
+            if self.res == 2:
+                # Squeeze and excitation blocks
+                self.l1res = SE_Block(16)
+                self.l2res = SE_Block(64)
+                self.l3res = SE_Block(256)
+                self.l4res = SE_Block(512)
+            if self.res == 3:
+                self.l1res = t.nn.Sequential(create_residual_block(fs, 16, pad), SE_Block(16))
+                self.l2res = t.nn.Sequential(create_residual_block(fs, 64, pad), SE_Block(64))
+                self.l3res = t.nn.Sequential(create_residual_block(fs, 256, pad), SE_Block(256))
+                self.l4res = t.nn.Sequential(create_residual_block(fs, 512, pad), SE_Block(512))
 
     def forward(self, x):
-        cnn_out = self.backbone(x)
-        B, CH, H, W = cnn_out.shape
-        x = cnn_out.view(B, CH * H, W)
-        x = x.permute(2, 0, 1)
-        x = self.pos_encoding(x, rnd=True)
-        x = self.encoder(x)
-        x = x.permute(1, 2, 0).view(B, CH, H, W)
-        return x + cnn_out
+        if self.legacy:
+            return self.backbone(x)
+        else:
+            if self.res > 0:
+                x_tmp = self.l1(x)
+                x = self.l1res(x_tmp) + x_tmp
+                x = t.relu(x)
+                x_tmp = self.l2(x)
+                x = self.l2res(x_tmp) + x_tmp
+                x = t.relu(x)
+                x_tmp = self.l3(x)
+                x = self.l3res(x_tmp) + x_tmp
+                x = t.relu(x)
+                x_tmp = self.l4(x)
+                x = self.l4res(x_tmp) + x_tmp
+                x = t.relu(x)
+                x = self.l5(x)
+            else:
+                x = self.l1(x)
+                x = t.relu(x)
+                x = self.l2(x)
+                x = t.relu(x)
+                x = self.l3(x)
+                x = t.relu(x)
+                x = self.l4(x)
+                x = t.relu(x)
+                x = self.l5(x)
+            return x
 
 
+def get_custom_CNN(lp, fs, ech, res):
+    return CNNOLD(lp, fs, ech, res)
 
-class VGG11EmbeddingNet_5c(nn.Module):
-    """ Embedding branch based on Pytorch's VGG11 with Batchnorm (https://pytor
-    ch.org/docs/stable/torchvision/models.html). This is version 5c, meaning
-    that it has 5 convolutional layers, it follows the original model up until
-    the 13th layer (The ReLU after the 4th convolution), in order to keep the
-    total stride equal to 4. It adds the 5th convolutional layer which acts as
-    a bottleck a feature bottleneck reducing the features from 256 to 32 and
-    must always be trained. The layers 0 to 13 can be loaded from
-    torchvision.models.vgg11_bn(pretrained=True)
-    """
 
-    def __init__(self):
-        super(VGG11EmbeddingNet_5c, self).__init__()
-        self.features = nn.Sequential(nn.Conv2d(3, 64, kernel_size=3,
-                                                  stride=1, bias=True),
-                                        nn.BatchNorm2d(64),
-                                        nn.ReLU(),
-                                        nn.MaxPool2d(2, stride=2),
-
-                                        nn.Conv2d(64, 128, kernel_size=3,
-                                                  stride=1, bias=True),
-                                        nn.BatchNorm2d(128),
-                                        nn.ReLU(),
-                                        nn.MaxPool2d(2, stride=2),
-                                        nn.Conv2d(128, 256, kernel_size=3,
-                                                  stride=1, bias=True),
-                                        nn.BatchNorm2d(256),
-                                        nn.ReLU(),
-                                        nn.Conv2d(256, 256, kernel_size=3,
-                                                  stride=1, bias=True),
-                                        nn.BatchNorm2d(256),
-                                        nn.ReLU(),
-                                        # Added ConvLayer, not in original model
-                                        nn.Conv2d(256, 32, kernel_size=3,
-                                                  stride=1, bias=True))
+class SE_Block(nn.Module):
+    def __init__(self, ch, reduction=8):
+        super().__init__()
+        self.squeeze = nn.AdaptiveAvgPool2d(1)
+        self.excitation = nn.Sequential(
+            nn.Linear(ch, ch // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(ch // reduction, ch, bias=False),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
-        output = self.features(x)
-        return output
-
-
-def get_pretrained_VGG11():
-    from torchvision.models.vgg import vgg11_bn
-    pretrained_dict = vgg11_bn(pretrained=True).state_dict()
-    model = VGG11EmbeddingNet_5c()
-    model_dict = model.state_dict()
-
-    # 1. filter out unnecessary keys
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    # 2. overwrite entries in the existing state dict
-    model_dict.update(pretrained_dict)
-    # 3. load the new state dict
-    model.load_state_dict(model_dict)
-    return model
-
-
-def get_custom_CNN():
-    return CNN()
-
-
-def get_UNet():
-    return UNet()
-
-
-def get_super_backbone():
-    return SuperBackbone()
+        bs, c, _, _ = x.shape
+        y = self.squeeze(x).view(bs, c)
+        y = self.excitation(y).view(bs, c, 1, 1)
+        return x * y.expand_as(x)
 
 
 class Siamese(t.nn.Module):
@@ -180,24 +127,21 @@ class Siamese(t.nn.Module):
     def __init__(self, backbone, padding=3):
         super(Siamese, self).__init__()
         self.backbone = backbone
-        self.out_batchnorm = t.nn.BatchNorm2d(1)
         self.padding = padding
+        # self.wb = t.nn.Parameter(t.tensor([1.0, 0.0]), requires_grad=True)
+        self.out_batchnorm = t.nn.BatchNorm2d(1)
 
     def forward(self, source, target, padding=None, displac=None):
         source = self.backbone(source)
         target = self.backbone(target)
         if displac is None:
+            # regular walk through
             score_map = self.match_corr(target, source, padding=padding)
-            score_map = self.out_batchnorm(score_map).squeeze(1).squeeze(1)
-            return score_map
+            score_map = self.out_batchnorm(score_map)
+            return score_map.squeeze(1).squeeze(1)
         else:
             # for importance visualisation
-            if displac > 0:
-                shifted_target = F.pad(target, [abs(displac), abs(displac), 0, 0], mode="circular")[..., 2*displac:]
-            elif displac < 0:
-                shifted_target = F.pad(target, [abs(displac), abs(displac), 0, 0], mode="circular")[..., :2*displac]
-            else:
-                shifted_target = target
+            shifted_target = t.roll(target, displac, -1)
             score = source * shifted_target
             score = t.sum(score, dim=[1, 2])
             return score
@@ -213,7 +157,6 @@ class Siamese(t.nn.Module):
         Returns:
             match_map: (torch.Tensor) The correlation between
         """
-
         if padding is None:
             padding = self.padding
         b, c, h, w = embed_srch.shape
@@ -232,71 +175,15 @@ class Siamese(t.nn.Module):
         else:
             match_map = F.conv2d(F.pad(embed_srch.view(1, b * c, h, w), pad=(padding, padding, 1, 1), mode='circular'),
                                  embed_ref, groups=b)
+
             match_map = t.max(match_map.permute(1, 0, 2, 3), dim=2)[0].unsqueeze(2)
         return match_map
 
 
-class TeacherStudent(nn.Module):
-
-    def __init__(self, backbone, padding=3):
-        super(TeacherStudent, self).__init__()
-        self.backbone_teacher = backbone
-        self.backbone_student = deepcopy(backbone)
-        self.out_batchnorm = t.nn.BatchNorm2d(1)
-        self.padding = padding
-
-    def forward(self, source, target, padding=None):
-        if self.training:
-            source = self.backbone_teacher(source)
-            target = self.backbone_student(target)
-        else:
-            source = self.backbone_teacher(source)
-            target = self.backbone_teacher(target)
-        score_map = self.match_corr(target, source, padding=padding)
-        score_map = self.out_batchnorm(score_map)
-        return score_map.squeeze(1).squeeze(1)
-
-    def match_corr(self, embed_ref, embed_srch, padding=None):
-        # Copied from Siamese model
-        if padding is None:
-            padding = self.padding
-        b, c, h, w = embed_srch.shape
-        _, _, h_ref, w_ref = embed_ref.shape
-        match_map = conv2d(embed_srch.view(1, b * c, h, w),
-                           embed_ref, groups=b, padding=(0, padding))
-        match_map = match_map.permute(1, 0, 2, 3)
-
-        return match_map
-
-    def update_teacher(self, tau):
-        with t.no_grad():
-            m = tau  # momentum parameter: m * teacher + (1-m) * student
-            for param_q, param_k in zip(self.backbone_student.parameters(), self.backbone_teacher.parameters()):
-                param_k.data.mul_(m).add_((1 - m) * param_q.detach().data)
-
-
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        pe = t.zeros(max_len, d_model)
-        position = t.arange(0, max_len, dtype=t.float).unsqueeze(1)
-        div_term = t.exp(t.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = t.sin(position * div_term)
-        pe[:, 1::2] = t.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x, rnd=True):
-        width = x.size(0)
-        if self.training and rnd and width < 32:
-            shift = random.randint(0, 64 - width)
-        else:
-            shift = 0
-        x = x + self.pe[shift:x.size(0)+shift, :]
-        return self.dropout(x)
+def get_parametrized_model(lp, fs, ech, res, pad, device):
+    backbone = get_custom_CNN(lp, fs, ech, res)
+    model = Siamese(backbone, padding=pad).to(device)
+    return model
 
 
 def save_model(model, name, epoch, optimizer=None):
@@ -309,7 +196,7 @@ def save_model(model, name, epoch, optimizer=None):
 
 
 def load_model(model, path, optimizer=None):
-    checkpoint = t.load(path)
+    checkpoint = t.load(path, map_location=t.device("cpu"))
     model.load_state_dict(checkpoint['model_state_dict'])
     print("Loaded model at", path)
     if optimizer is not None:
@@ -318,3 +205,22 @@ def load_model(model, path, optimizer=None):
     else:
         return model
 
+
+def jit_save(model, name, epoch, arb_in, args):
+    # save model arguments
+    filename = "./results_" + name + "/model.info"
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc:  # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+    with open(filename, "w") as f:
+        f.write(str(args))
+
+    # save actual model
+    t.jit.save(t.jit.trace(model, arb_in), "./results_" + name + "/model_" + str(epoch) + ".jit")
+
+
+def jit_load(path, device):
+    return t.jit.load(path, map_location=device)

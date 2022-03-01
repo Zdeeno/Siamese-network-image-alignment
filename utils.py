@@ -12,7 +12,6 @@ from torchvision.utils import save_image
 from scipy import interpolate
 
 
-
 # class GANAugemntation(t.nn.Module):
 #
 #     def __init__(self, p=0.5):
@@ -28,24 +27,24 @@ from scipy import interpolate
 #                 return x
 
 
-AUG_P = 0.05
+AUG_P = 0.1
 
 batch_augmentations = t.nn.Sequential(
     K.augmentation.RandomAffine(t.tensor(10.0),
-                                t.tensor([0.0, 0.25]),
+                                t.tensor([0.0, 0.15]),
                                 align_corners=False, p=AUG_P),
     K.augmentation.RandomBoxBlur(p=AUG_P),
     K.augmentation.RandomChannelShuffle(p=AUG_P),
-    K.augmentation.RandomPerspective(distortion_scale=0.075, p=AUG_P),
+    K.augmentation.RandomPerspective(distortion_scale=0.05, p=AUG_P),
     # K.augmentation.RandomPosterize(p=0.2),    CPU only
     K.augmentation.RandomSharpness(p=AUG_P),
     K.augmentation.RandomSolarize(p=AUG_P),
     K.augmentation.ColorJitter(0.1, 0.1, 0.1, 0.1, p=AUG_P),
-    K.augmentation.RandomGaussianNoise(std=0.15, p=AUG_P),
+    K.augmentation.RandomGaussianNoise(std=0.1, p=AUG_P),
     K.augmentation.RandomElasticTransform(p=AUG_P),
     # K.augmentation.RandomEqualize(p=0.2),     CPU only
     K.augmentation.RandomGrayscale(p=AUG_P),
-    K.augmentation.RandomErasing(p=AUG_P, scale=(0.1, 0.5))
+    # K.augmentation.RandomErasing(p=AUG_P, scale=(0.1, 0.5))
 )
 
 
@@ -82,8 +81,8 @@ def plot_samples(source, target, heatmap, prediction=None, name=0, dir="results/
         axarr[2].plot(np.arange(-256, 256), pred)
         axarr[2].plot(np.arange(-256, 256), heatmap_plot)
         axarr[2].set_xlim((0, source_width - 1))
-        axarr[2].set_xlabel("Displacement")
-        axarr[2].set_ylabel("Likelihood")
+        axarr[2].set_xlabel("Displacement [px]")
+        axarr[2].set_ylabel("Likelihood [-]")
         axarr[2].set_xlim((-256, 256))
         axarr[2].grid()
         axarr[2].legend(["prediction", "target"])
@@ -115,8 +114,8 @@ def plot_displacement(source, target, prediction, displacement=None, importance=
     if displacement is not None:
         axarr[2].axvline(x=displacement, ymin=0, ymax=1, c="b", ls="--")
     axarr[2].plot(np.arange(-256, 256), pred)
-    axarr[2].set_xlabel("Displacement")
-    axarr[2].set_ylabel("Likelihood")
+    axarr[2].set_xlabel("Displacement [px]")
+    axarr[2].set_ylabel("Likelihood [-]")
     axarr[2].grid()
     axarr[2].legend(["prediction", "ground truth", "displacement likelihood"])
     axarr[2].set_xlim((-256, 256))
@@ -130,8 +129,10 @@ def plot_displacement(source, target, prediction, displacement=None, importance=
     plt.close()
 
 
-def plot_similarity(img1, img2, time_histogram, name=None):
+def plot_similarity(img1, img2, time_histogram, name=None, offset=None):
     f, axarr = plt.subplots(3)
+    if offset is not None:
+        img2 = t.roll(img2, offset, -1)
     axarr[0].imshow(img1.permute(1, 2, 0), aspect="auto")
     axarr[1].imshow(img2.permute(1, 2, 0), aspect="auto")
     predicted_max = t.argmax(time_histogram)
@@ -153,14 +154,34 @@ def plot_similarity(img1, img2, time_histogram, name=None):
     plt.close()
 
 
-def save_imgs(img1, img2, name, path="/home/zdeeno/Documents/Datasets/nordland_rectified", max_val=None):
+def plot_cuts(img1, img2, suptitle, name=None):
+    f, axarr = plt.subplots(2)
+    axarr[0].imshow(img1.permute(1, 2, 0), aspect="auto")
+    axarr[1].imshow(img2.permute(1, 2, 0), aspect="auto")
+    f.suptitle(suptitle)
+    if name is not None:
+        # plt.savefig("results_cuts/" + name + ".png")
+        pass
+    else:
+        plt.show()
+    plt.close()
+
+
+def save_imgs(img2, name, img1=None, path="/home/zdeeno/Documents/Datasets/eulongterm_rectified", max_val=None, offset=None):
     path1 = os.path.join(path, "0", str(name) + ".png")
     path2 = os.path.join(path, "1", str(name) + ".png")
-    # save_image(img1, path1)
+    if img1 is not None:
+        save_image(img1, path1)
     save_image(img2, path2)
+
+    if offset is not None:
+        write_str = str(name) + " " + str(max_val) + " " + str(offset) + "\n"
+    else:
+        write_str = str(name) + " " + str(max_val) + "\n"
+
     if max_val is not None:
         f = open(os.path.join(path, "quality.txt"), 'a')
-        f.write(str(name) + " " + str(max_val) + "\n")
+        f.write(write_str)
 
 
 def get_shift(img_width, crop_width, histogram, crops_idx):
@@ -179,21 +200,6 @@ def get_shift(img_width, crop_width, histogram, crops_idx):
         bin_size[final_hist_start:final_hist_start+hist_size] += 1
     final_hist /= bin_size
     return final_hist[hist_size//2:-hist_size//2]
-
-
-def fft_compare(a, b):
-    x = t.fft.fftn(a)
-    y = t.fft.fftn(b)
-
-    y = y.imag
-    fab = t.multiply(x, y)
-
-    res = t.fft.ifft(fab)
-    offsets = res.imag
-    for i in range(offsets.dim() - 1):
-        offsets = t.sum(offsets, dim=0)
-    offsets = t.roll(offsets, shifts=(offsets.size(0)//2 - 1, ), dims=(0, ))
-    return offsets
 
 
 def affine(img, rotate, translate):

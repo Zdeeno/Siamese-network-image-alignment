@@ -2,31 +2,23 @@
 
 Align images from different seasons using deep learning
 
-## Get datasets
+[Trained model](https://datasets.chronorobotics.tk/s/yEoarAKM2AVps5R)
 
-[Testing](https://datasets.chronorobotics.tk/s/QUeUFeUen0942t9)
+## Datasets
 
-[Training](https://datasets.chronorobotics.tk/s/aVD7YOTvtOirYhU)
+[Nordland Rectified](https://datasets.chronorobotics.tk/s/aVD7YOTvtOirYhU)
 
-Unzip them etc
+[EU Longterm (UTBM Robotcar) Rectified](https://datasets.chronorobotics.tk/s/aVD7YOTvtOirYhU)
 
-Additionally, a good model is available [here](https://datasets.chronorobotics.tk/s/zp2x7Mqxc0fNwEm).
+[Evaluation](https://datasets.chronorobotics.tk/s/QUeUFeUen0942t9)
 
-## Install
+## Requirements
 
-Do `pip3 install torchvision kornia einops`
+PyTorch, Torchvision, Scikit-learn
 
-I changed the parset_nordland (second path) to my dataset.
-Create a path in the local folder called results_siam
+## Demo
 
-## Training
+Run: `python demo.py`
 
-Then train the model with python train_siam.py
+[Hyperparam sweep](https://wandb.ai/zdeeno/alignment?workspace=user-zdeeno)
 
-## Evaluate
-
-In evaluate_model.py, change the model path and the model number (training iterations).
-Also in parser_grief, set the dataset path.
-The results appear in results folder, along with the errors.csv.
-
-The plots.py can be adjusted with the errors.csv to get the cumulative plots.

@@ -2,7 +2,6 @@ import numpy as np
 import torchvision
 import torch as t
 from model import Siamese, get_custom_CNN, load_model
-from train_siam import get_pad
 from matplotlib import pyplot as plt
 from torchvision.transforms import Resize
 from parser_nordland import VideoDataset, FrameNordland
@@ -10,8 +9,11 @@ from utils import plot_similarity, save_imgs
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
+def get_pad(crop):
+    return (crop - 8) // 16
+
 # network params
-MODEL = "/home/zdeeno/Documents/Work/alignment/results_siam/model_6.pt"
+MODEL = "/home/zdeeno/Documents/Work/alignment/results_siam_cnn/model_47.pt"
 device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 WIDTH = 512
 CROP_SIZE = 504  # [56 + 16*i for i in range(5)]
@@ -28,11 +30,11 @@ MASK = (OUTPUT_SIZE - 1) / MASK.to(device)
 print(MASK)
 
 # program params
-VISUALIZE = False
-START_IDX = 0  # for restarting session
+VISUALIZE = True
+START_IDX = 10000  # for restarting session
 STEP = 1  # frames in one step
 DISTANCE = 25  # GPS distance between positions
-SEARCH_SIZE = 64
+SEARCH_SIZE = 8
 OUTPUT_THRESHOLD = 135
 SHIFT_THRESHOLD = 60
 
@@ -48,9 +50,12 @@ FPS_per_GPS = 25
 START = (2*60 + 55) * FPS_per_GPS
 VIDEO1 = "/home/zdeeno/Documents/Datasets/nordland/videos/spring"
 GPS1 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/spring.csv"
-VIDEO2 = "/home/zdeeno/Documents/Datasets/nordland/videos/fall"
-GPS2 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/fall.csv"
+VIDEO2 = "/home/zdeeno/Documents/Datasets/nordland/videos/winter"
+GPS2 = "/home/zdeeno/Documents/Datasets/nordland/videos/gpsData/winter.csv"
 resize = Resize(288)
+
+
+# TODO: fix CNN init and image saving
 
 
 def preprocess_for_model(image):
@@ -85,7 +90,7 @@ def time_histogram(batch1, batch2):
 
 if __name__ == '__main__':
     import time
-    time.sleep(int(3600 * 2.75))
+    # time.sleep(int(3600 * 2.75))
 
     video1 = FrameNordland(VIDEO1)
     video2 = FrameNordland(VIDEO2)
