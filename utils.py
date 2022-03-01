@@ -117,7 +117,10 @@ def plot_displacement(source, target, prediction, displacement=None, importance=
     axarr[2].set_xlabel("Displacement [px]")
     axarr[2].set_ylabel("Likelihood [-]")
     axarr[2].grid()
-    axarr[2].legend(["prediction", "ground truth", "displacement likelihood"])
+    if displacement is None:
+        axarr[2].legend(["prediction", "likelihood"])
+    else:
+        axarr[2].legend(["prediction", "ground truth", "displacement likelihood"])
     axarr[2].set_xlim((-256, 256))
     if importance is not None:
         axarr[3].plot(importance)

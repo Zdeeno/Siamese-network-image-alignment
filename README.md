@@ -2,6 +2,8 @@
 
 Align images from different seasons using deep learning
 
+![alt text](result.png)
+
 [Trained model](https://datasets.chronorobotics.tk/s/yEoarAKM2AVps5R)
 
 ## Datasets
@@ -20,5 +22,5 @@ PyTorch, Torchvision, Scikit-learn
 
 Run: `python demo.py`
 
-[Hyperparam sweep](https://wandb.ai/zdeeno/alignment?workspace=user-zdeeno)
+[Hyperparameter sweep](https://wandb.ai/zdeeno/alignment?workspace=user-zdeeno)
 
