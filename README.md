@@ -1,4 +1,4 @@
-# Siamese network for image registation
+# Siamese network for image registration
 
 Aligns images from different seasons using deep learning
 
