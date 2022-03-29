@@ -24,3 +24,8 @@ Run: `python demo.py`
 
 [Hyperparameter sweep](https://wandb.ai/zdeeno/alignment?workspace=user-zdeeno)
 
+## Heatmap of contributions
+
+Visualisation of importance of parts of image, which were used for the displacement estimation
+
+![alt text](heatmap.png)
