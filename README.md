@@ -1,8 +1,10 @@
 # Siamese network for image registration
 
-Aligns images from different seasons using deep learning [paper](https://www.mdpi.com/1424-8220/22/8/2975)
+Aligns images from different seasons using deep learning.
 
 ![alt text](result.png)
+
+[Paper](https://www.mdpi.com/1424-8220/22/8/2975)
 
 [Trained model](https://datasets.chronorobotics.tk/s/yEoarAKM2AVps5R)
 
