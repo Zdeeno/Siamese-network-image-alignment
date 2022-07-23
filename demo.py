@@ -31,7 +31,7 @@ FILTER_SIZE = 3
 EMB_CHANNELS = 256
 RESIDUALS = 0
 
-size_frac = WIDTH / 1024
+size_frac = WIDTH / IMAGE_WIDTH
 transform = Resize(int(IMAGE_HEIGHT * size_frac))
 fraction_resized = int(FRACTION/size_frac)
 
@@ -54,8 +54,8 @@ def run_demo():
         # visualize:
         shift_hist = histogram.cpu()
         f = interpolate.interp1d(np.linspace(0, IMAGE_WIDTH - fraction_resized, OUTPUT_SIZE), shift_hist, kind="cubic")
-        interpolated = f(np.arange(1008))
-        ret = -(np.argmax(interpolated) - 504)
+        interpolated = f(np.arange(IMAGE_WIDTH - 16))
+        ret = -(np.argmax(interpolated) - (IMAGE_WIDTH - 16) // 2.0)
         plot_displacement(source.squeeze(0).cpu(),
                           target.squeeze(0).cpu(),
                           shift_hist.squeeze(0).cpu(),
