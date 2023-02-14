@@ -53,9 +53,9 @@ def run_demo():
 
         # visualize:
         shift_hist = histogram.cpu()
-        f = interpolate.interp1d(np.linspace(0, IMAGE_WIDTH - fraction_resized, OUTPUT_SIZE), shift_hist, kind="cubic")
-        interpolated = f(np.arange(IMAGE_WIDTH - 16))
-        ret = -(np.argmax(interpolated) - (IMAGE_WIDTH - 16) // 2.0)
+        f = interpolate.interp1d(np.linspace(0, IMAGE_WIDTH, OUTPUT_SIZE), shift_hist, kind="cubic")
+        interpolated = f(np.arange(IMAGE_WIDTH))
+        ret = -(np.argmax(interpolated) - IMAGE_WIDTH // 2.0)
         plot_displacement(source.squeeze(0).cpu(),
                           target.squeeze(0).cpu(),
                           shift_hist.squeeze(0).cpu(),
