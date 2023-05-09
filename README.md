@@ -6,9 +6,9 @@ Aligns images from different seasons using deep learning.
 
 [Paper](https://www.mdpi.com/1424-8220/22/8/2975)
 
-[Trained model big](https://datasets.chronorobotics.tk/s/yEoarAKM2AVps5R)
+[Trained model big (256 channels)](https://datasets.chronorobotics.tk/s/yEoarAKM2AVps5R)
 
-[Trained model small](https://datasets.chronorobotics.tk/s/Vov2JlMYl8QTLG8)
+[Trained model small (16 channels)](https://datasets.chronorobotics.tk/s/Vov2JlMYl8QTLG8)
 
 ## Datasets
 
