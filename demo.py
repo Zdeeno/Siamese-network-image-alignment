@@ -18,6 +18,10 @@ IMAGE_HEIGHT = 384
 MODEL_PATH = "./model_siam.pt"
 IMG1_PATH = "./images/1.jpg"
 IMG2_PATH = "./images/2.jpg"
+# use this for large model
+EMB_CHANNELS = 256
+# use this for tiny model
+# EMB_CHANNELS = 16
 # -------------------------------
 
 
@@ -28,7 +32,6 @@ OUTPUT_SIZE = WIDTH//FRACTION
 CROP_SIZE = WIDTH - FRACTION
 LAYER_POOL = False
 FILTER_SIZE = 3
-EMB_CHANNELS = 256
 RESIDUALS = 0
 
 size_frac = WIDTH / IMAGE_WIDTH

@@ -38,19 +38,20 @@ class CNNOLD(t.nn.Module):
         pad = fs // 2
         self.res = res
         self.legacy = legacy
-        if self.legacy:
-            self.backbone = t.nn.Sequential(*[create_conv_block(3, 16, 3, 1, 1, (2, 2), pool_layer=False),
-                                              create_conv_block(16, 64, 3, 1, 1, (2, 2), pool_layer=False),
-                                              create_conv_block(64, 256, 3, 1, 1, (2, 2), pool_layer=False),
-                                              create_conv_block(256, 512, 3, 1, 1, (2, 1), pool_layer=False),
-                                              create_conv_block(512, 256, 3, 1, 1, (3, 1), bn=False, relu=False,
-                                                                pool_layer=False)])
+        self.ech = ech
+        if self.legacy and ech == 256:
+                self.backbone = t.nn.Sequential(*[create_conv_block(3, 16, 3, 1, 1, (2, 2), pool_layer=False),
+                                                  create_conv_block(16, 64, 3, 1, 1, (2, 2), pool_layer=False),
+                                                  create_conv_block(64, 256, 3, 1, 1, (2, 2), pool_layer=False),
+                                                  create_conv_block(256, 512, 3, 1, 1, (2, 1), pool_layer=False),
+                                                  create_conv_block(512, 256, 3, 1, 1, (3, 1), bn=False, relu=False,
+                                                                    pool_layer=False)])
         else:
             self.l1 = create_conv_block(3, 16, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
             self.l2 = create_conv_block(16, 64, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
             self.l3 = create_conv_block(64, 256, fs, 1, pad, (2, 2), pool_layer=lp, relu=False)
             self.l4 = create_conv_block(256, 512, fs, 1, pad, (2, 1), pool_layer=lp, relu=False)
-            self.l5 = create_conv_block(512, ech, fs, 1, pad, (3, 1), relu=False, pool_layer=lp)
+            self.l5 = create_conv_block(512, ech, fs, 1, pad, (3, 1), relu=False, pool_layer=lp, bn=False)
             if self.res == 1:
                 # residual blocks
                 self.l1res = create_residual_block(fs, 16, pad)
@@ -70,7 +71,7 @@ class CNNOLD(t.nn.Module):
                 self.l4res = t.nn.Sequential(create_residual_block(fs, 512, pad), SE_Block(512))
 
     def forward(self, x):
-        if self.legacy:
+        if self.legacy and self.ech == 256:
             return self.backbone(x)
         else:
             if self.res > 0:
